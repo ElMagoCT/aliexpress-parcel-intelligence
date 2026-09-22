@@ -4,7 +4,7 @@
  */
 import { db } from '@/db/schema';
 import type { EndpointRecord } from '@/model/types';
-import { ORDERS_PAGE_URL, buildMtopRequest, isTokenExpired, looksLoggedOut, mtopTimeZone, parsePayload, synthesizeMtopGet, withBodyField, withBodyPage, withDataField, withPage } from '@/adapters/aliexpress';
+import { ORDERS_PAGE_URL, REFUNDS_PAGE_URL, REVERSE_DETAIL_API, REVERSE_LIST_API, buildMtopRequest, isTokenExpired, looksLoggedOut, mtopTimeZone, parsePayload, reverseDetailBody, reverseListBody, synthesizeMtopGet, synthesizeMtopPost, withBodyField, withBodyPage, withDataField, withPage } from '@/adapters/aliexpress';
 import { ingestBundle, recordEndpoint } from './ingest';
 import { jitter, sleep } from '@/shared/util';
 
@@ -122,46 +122,105 @@ export async function syncOrderDetails(report: (p: string) => Promise<void>, lim
  * Returns/refunds page (list) and one case detail page (detail). Fetches every finished case
  * (reverseStatus 1 = all) and each case's detail for the actual refunded amount.
  */
+/**
+ * Open a page in a background tab just long enough for the MAIN-world interceptor to record the
+ * request shapes it makes, then close it. Used when a synthesised request isn't accepted.
+ * `chrome.tabs.create/remove` need no "tabs" permission.
+ */
+async function learnFromPage(url: string, matches: (e: EndpointRecord) => boolean, report: (p: string) => Promise<void>, timeoutMs = 30_000): Promise<boolean> {
+  const has = async () => (await db.endpoints.toArray()).some(matches);
+  if (await has()) return true;
+  await report('opening your AliExpress Returns page to learn the request format…');
+  let tabId: number | undefined;
+  try {
+    tabId = (await chrome.tabs.create({ url, active: false })).id;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      await sleep(1500);
+      if (await has()) return true;
+    }
+    return false;
+  } catch { return false; } finally {
+    if (tabId != null) { try { await chrome.tabs.remove(tabId); } catch { /* already gone */ } }
+  }
+}
+
+const isReverseList = (e: EndpointRecord) => e.kind === 'refund' && /pagelist/i.test(e.key) && !!e.bodyTemplate;
+const isReverseDetail = (e: EndpointRecord) => e.kind === 'refund' && /render/i.test(e.key) && !!e.bodyTemplate;
+
 export async function syncRefunds(report: (p: string) => Promise<void>): Promise<{ cases: number; detailed: number; note: string }> {
-  const eps = await db.endpoints.where('kind').equals('refund').toArray();
-  const listEp = eps.filter((e) => /pagelist/i.test(e.key) && e.bodyTemplate).sort((a, b) => b.lastSeenAt - a.lastSeenAt)[0];
-  const detailEp = eps.filter((e) => /render/i.test(e.key) && e.bodyTemplate).sort((a, b) => b.lastSeenAt - a.lastSeenAt)[0];
-  if (!listEp) return { cases: 0, detailed: 0, note: 'Open the Returns/refunds page once (Account → Returns/refunds) so the request shape can be learned.' };
+  const anyMtop = () => db.endpoints.toArray().then((es) => es.filter((e) => /\/h5\/mtop\./.test(e.urlTemplate)).sort((a, b) => b.lastSeenAt - a.lastSeenAt)[0]);
+  const base = await anyMtop();
+  if (!base) return { cases: 0, detailed: 0, note: `No AliExpress request shape learned yet — open ${ORDERS_PAGE_URL} once while signed in.` };
+  const shipTo = await shipToCountry();
   let cases = 0, detailed = 0;
+
+  // The list call: build it ourselves; only fall back to opening the Returns page if that is refused.
+  const listReq = async (page: number): Promise<{ url: string; method: string; body: string } | null> => {
+    const learned = (await db.endpoints.toArray()).filter(isReverseList).sort((a, b) => b.lastSeenAt - a.lastSeenAt)[0];
+    if (learned) {
+      let body = withBodyField(learned.bodyTemplate!, 'reverseStatus', 1);
+      body = body && withBodyField(body, 'pageNo', page);
+      body = body && withBodyField(body, 'size', 20);
+      if (body) return { url: learned.urlTemplate, method: learned.method || 'POST', body };
+    }
+    const syn = synthesizeMtopPost(base.urlTemplate, REVERSE_LIST_API, reverseListBody(page, 20, shipTo));
+    return syn ? { url: syn.url, method: 'POST', body: syn.body } : null;
+  };
+
   for (let page = 1; page <= 30; page++) {
-    let body = withBodyField(listEp.bodyTemplate!, 'reverseStatus', 1);
-    body = body && withBodyField(body, 'pageNo', page);
-    body = body && withBodyField(body, 'size', 20);
-    if (!body) return { cases, detailed, note: 'could not rewrite list body' };
-    const r = await fetchWithRetry(listEp.urlTemplate, listEp.method, body);
+    let req = await listReq(page);
+    if (!req) return { cases, detailed, note: 'could not build the returns request' };
+    let r = await fetchWithRetry(req.url, req.method, req.body);
+    let bundle = parsePayload(req.url, r.text);
+    // Nothing usable on the first page: learn the exact shape from the real page, then retry once.
+    if (page === 1 && !bundle.refunds.length) {
+      const learned = await learnFromPage(REFUNDS_PAGE_URL, isReverseList, report);
+      if (learned) {
+        req = await listReq(page);
+        if (req) { r = await fetchWithRetry(req.url, req.method, req.body); bundle = parsePayload(req.url, r.text); }
+      }
+    }
     if (looksLoggedOut(r.finalUrl, r.status, r.text)) { await db.patchSettings({ loggedOut: true }); return { cases, detailed, note: 'Login required' }; }
-    if (r.status === 429 || r.status >= 500) return { cases, detailed, note: `HTTP ${r.status}` };
-    const bundle = parsePayload(listEp.urlTemplate, r.text);
-    if (!bundle.refunds.length) break;
+    if (r.status === 429 || r.status >= 500) return { cases, detailed, note: `HTTP ${r.status} — paused, try again later` };
+    if (!bundle.refunds.length) {
+      if (page === 1) return { cases, detailed, note: 'AliExpress returned no return/refund cases for this account.' };
+      break;
+    }
     await ingestBundle(bundle, 'aliexpress');
     cases += bundle.refunds.length;
-    await report(`${cases} return/refund cases listed`);
+    await report(`${cases} return/refund case${cases === 1 ? '' : 's'} found`);
     if (bundle.totalPages != null && page >= bundle.totalPages) break;
     await sleep(jitter(1800, 0.4));
   }
-  if (!detailEp) return { cases, detailed, note: cases ? 'Amounts need the case-detail shape: open one return/refund case once.' : 'no cases' };
-  const todo = (await db.refunds.toArray()).filter((r) => r.refundAmount == null && r.orderId && r.orderLineId);
+
+  // Per-case detail carries the money actually refunded.
+  const todo = (await db.refunds.toArray()).filter((x) => x.refundAmount == null && x.orderId && x.orderLineId);
   for (const rf of todo) {
-    let body = withBodyField(detailEp.bodyTemplate!, 'reverseOrderLineId', rf.refundId);
-    body = body && withBodyField(body, 'reverseOrderId', rf.reverseOrderId ?? '');
-    body = body && withBodyField(body, 'tradeOrderId', rf.orderId);
-    body = body && withBodyField(body, 'tradeOrderLineId', rf.orderLineId);
-    if (!body) break;
+    const learned = (await db.endpoints.toArray()).filter(isReverseDetail).sort((a, b) => b.lastSeenAt - a.lastSeenAt)[0];
+    let req: { url: string; method: string; body: string } | null = null;
+    if (learned) {
+      let body = withBodyField(learned.bodyTemplate!, 'reverseOrderLineId', rf.refundId);
+      body = body && withBodyField(body, 'reverseOrderId', rf.reverseOrderId ?? '');
+      body = body && withBodyField(body, 'tradeOrderId', rf.orderId ?? '');
+      body = body && withBodyField(body, 'tradeOrderLineId', rf.orderLineId ?? '');
+      if (body) req = { url: learned.urlTemplate, method: learned.method || 'POST', body };
+    }
+    if (!req) {
+      const syn = synthesizeMtopPost(base.urlTemplate, REVERSE_DETAIL_API, reverseDetailBody({ reverseOrderLineId: rf.refundId, reverseOrderId: rf.reverseOrderId, tradeOrderId: rf.orderId, tradeOrderLineId: rf.orderLineId }, shipTo));
+      if (syn) req = { url: syn.url, method: 'POST', body: syn.body };
+    }
+    if (!req) break;
     try {
-      const r = await fetchWithRetry(detailEp.urlTemplate, detailEp.method, body);
-      if (r.status === 429 || r.status >= 500) return { cases, detailed, note: `HTTP ${r.status}` };
-      const b = parsePayload(detailEp.urlTemplate, r.text);
+      const r = await fetchWithRetry(req.url, req.method, req.body);
+      if (r.status === 429 || r.status >= 500) return { cases, detailed, note: `HTTP ${r.status} — paused, try again later` };
+      const b = parsePayload(req.url, r.text);
       if (b.refunds.length) { await ingestBundle(b, 'aliexpress'); detailed++; }
     } catch (e) { return { cases, detailed, note: `fetch failed: ${String(e)}` }; }
-    await report(`${cases} cases · ${detailed} amounts fetched`);
+    await report(`${cases} cases · ${detailed} refund amounts fetched`);
     await sleep(jitter(1500, 0.5));
   }
-  return { cases, detailed, note: 'ok' };
+  return { cases, detailed, note: cases ? 'ok' : 'no cases' };
 }
 
 /** Run the per-order tracking fetch until nothing is left (or a stop condition), reporting progress. */

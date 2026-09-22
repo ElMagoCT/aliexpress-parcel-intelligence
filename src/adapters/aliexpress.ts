@@ -890,6 +890,27 @@ export function synthesizeMtopGet(baseTemplate: string, api: string, data: Recor
   } catch { return null; }
 }
 
+/** Build a fresh POST mtop request (url + form body) for `api`, reusing a known appKey/jsv. */
+export function synthesizeMtopPost(baseTemplate: string, api: string, data: Record<string, unknown>): { url: string; body: string } | null {
+  const url = synthesizeMtopGet(baseTemplate, api, {});
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('data');
+    return { url: u.toString(), body: `data=${encodeURIComponent(JSON.stringify(data))}` };
+  } catch { return null; }
+}
+
+/** Returns/refunds APIs, and the request bodies AliExpress' own pages send (observed 2026-09-21). */
+export const REVERSE_LIST_API = 'mtop.aliexpress.buyer.reverse.queryReverseOrderPageListForBuyer';
+export const REVERSE_DETAIL_API = 'mtop.aliexpress.buyer.reverse.reverseOrderLineRenderForBuyer';
+export const REFUNDS_PAGE_URL = 'https://m.aliexpress.com/p/refund-dispute/list.html';
+/** `reverseStatus: 1` is the "all cases" bucket; 2/3 are in-progress sub-filters. */
+export const reverseListBody = (pageNo: number, size: number, shipTo: string) =>
+  ({ _lang: 'en_US', pageNo, shopName: '', reverseStatus: 1, tradeOrderId: '', size, sortOrder: 'DESC', shipTo });
+export const reverseDetailBody = (ids: { reverseOrderLineId: string; reverseOrderId: string | null; tradeOrderId: string | null; tradeOrderLineId: string | null }, shipTo: string) =>
+  ({ _lang: 'en_US', terminalType: 'PC', reverseOrderLineId: ids.reverseOrderLineId, reverseOrderId: ids.reverseOrderId ?? '', tradeOrderId: ids.tradeOrderId ?? '', tradeOrderLineId: ids.tradeOrderLineId ?? '', shipTo });
+
 /** "GMT-0700" for the current machine, the shape AliExpress' own calls use. */
 export function mtopTimeZone(d = new Date()): string {
   const off = -d.getTimezoneOffset();

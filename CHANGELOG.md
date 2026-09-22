@@ -8,6 +8,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ---
 
+## [1.1.1] — 2026-09-21
+
+Makes the 1.1.0 features actually reachable: returns no longer need a setup step, and the service
+worker can no longer fail to start.
+
+### Fixed
+
+- **Returns/refunds needed an invisible prerequisite.** The sync only worked if you had already
+  visited Account → Returns/refunds in that browser, because it replayed a request shape captured
+  from that page. With no shape recorded it did nothing at all and said nothing. It now builds both
+  reverse-order requests itself, reusing the signing parameters of any AliExpress request it has
+  seen, and only falls back to briefly opening the Returns page in a background tab — reporting
+  that it is doing so — when the server refuses the synthesised call.
+- **The service worker could fail to start entirely.** It was loaded through
+  `service-worker-loader.js`, which imported a hash-named chunk that imported two more. Every
+  rebuild renames those chunks, so a stale or half-written set left Chrome unable to start the
+  worker: no syncing, and every dashboard button silently dead. The worker is now built as one
+  self-contained classic script with a stable name and no module graph.
+
+### Changed
+
+- The build emits `dist/service-worker.js` directly; `npm run build` gained a postbuild step that
+  verifies the worker is self-contained before rewriting the manifest.
+
+---
+
 ## [1.1.0] — 2026-09-21
 
 Shipping costs, "ordered at the same time" detection, and an end to buttons that fail silently.
@@ -127,6 +153,7 @@ Initial build: the whole extension in one pass, ten phases, shipped working befo
 - Not yet verified against a live account; endpoint names and DOM selectors were written from
   memory.
 
+[1.1.1]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.1.0
 
 > 0.1.0 and 1.0.0 were built before this repository existed, so they have no tags — their entries

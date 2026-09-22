@@ -1,15 +1,16 @@
 {
   "name": "aliexpress-parcel-intel",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build -c vite.interceptor.config.ts && vite build",
+    "build": "vite build -c vite.interceptor.config.ts && vite build -c vite.sw.config.ts && vite build && node scripts/postbuild.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "preview:dashboard": "vite --config vite.dashboard-preview.config.ts",
-    "build:interceptor": "vite build -c vite.interceptor.config.ts"
+    "build:interceptor": "vite build -c vite.interceptor.config.ts",
+    "build:sw": "vite build -c vite.sw.config.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",

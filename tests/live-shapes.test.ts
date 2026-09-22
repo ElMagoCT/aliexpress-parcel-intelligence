@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bodyHasPageIndex, buildMtopRequest, lookupCode, mtopTimeZone, orderIdFromUrl, parseDetailMoney, parsePayload, parsePriceBlock, promiseDaysFromText, synthesizeMtopGet, withBodyPage, withDataField } from '@/adapters/aliexpress';
+import { REVERSE_DETAIL_API, REVERSE_LIST_API, bodyHasPageIndex, buildMtopRequest, lookupCode, mtopTimeZone, orderIdFromUrl, parseDetailMoney, parsePayload, parsePriceBlock, promiseDaysFromText, reverseDetailBody, reverseListBody, synthesizeMtopGet, synthesizeMtopPost, withBodyPage, withDataField } from '@/adapters/aliexpress';
 
 /** Shapes observed on the live site on 2026-09-20 (values synthetic). */
 const ULTRON_ORDER_LIST = {
@@ -181,5 +181,91 @@ describe('order detail price block', () => {
     expect(u.searchParams.has('post')).toBe(false);
     expect(JSON.parse(u.searchParams.get('data')!).tradeOrderId).toBe('8000222333270000');
     expect(mtopTimeZone(new Date())).toMatch(/^GMT[+-]\d{4}$/);
+  });
+});
+
+/** Returns/refunds list + detail, shapes observed live on 2026-09-21 (ids synthetic). */
+const REVERSE_LIST = {
+  api: 'mtop.aliexpress.buyer.reverse.queryReverseOrderPageListForBuyer', ret: ['SUCCESS::调用成功'],
+  data: { module: { total: 14, pages: 2, pageNum: 1, pageSize: 10, curPagesize: 10, items: [
+    { shopName: 'Example Drone Store', reverseOrderLines: [{
+      reverseOrderId: '6380000000000001', reverseOrderLineId: '6380000000000002',
+      tradeOrderId: '8000222333270000', tradeOrderLineId: '8000222333280000',
+      reverseStatus: 4, reverseType: 'RETURN', solutionType: 2, reverseBizType: 'local_free_return',
+      gmtCreateFormat: '2026-07-22 18:57:51', gmtModifiedFormat: '2026-08-01 01:35:33',
+      aeItemDTO: { itemId: '3250000000000009', itemCount: 1, itemTitle: 'Brushless Motor 2207 1800KV', itemPicUrl: '//ae-pic.example/m.jpg_220x220.jpg', itemUnitPrice: { cent: 1869, currency: 'USD', formatMoney: '$18.69' } },
+    }] },
+  ] } },
+};
+
+const REVERSE_DETAIL = {
+  api: 'mtop.aliexpress.buyer.reverse.reverseOrderLineRenderForBuyer', ret: ['SUCCESS::调用成功'],
+  data: { module: {
+    reverseOrderLineId: '6380000000000002', reverseOrderId: '6380000000000001',
+    tradeOrderId: '8000222333270000', tradeOrderLineId: '8000222333280000',
+    reverseDetailStatus: 100, reverseDetailStatusText: 'Request complete',
+    gmtCreateFormat: '2026-07-22 18:57:51',
+    applyReason: { reasonId: 17003, reasonName: "Item defective or doesn't work" },
+    item: { itemTitle: 'Brushless Motor 2207 1800KV', itemUnitPrice: { cent: 1869, currency: 'USD' } },
+    reachSolution: { solutionType: 2, solutionTypeText: 'Returns/refunds', refundMoney: { cent: 1999, currency: 'USD', unit: '19.99', formatMoney: '$19.99' } },
+    reverseFinishInfo: { refundInfo: {
+      refundNewestStatus: 'FINISHED', refundNewestTime: 1785573351000, refundChannel: 'Original payment method',
+      refundDetails: { cashMoney: { cent: 1999, currency: 'USD', unit: '19.99' } },
+      refundChannelDetails: [{ refundStatus: 'FINISHED', refundFinished: true, aeRefundFinishTime: 1785573351000, money: { cent: 1999, currency: 'USD' } }],
+    } },
+  } },
+};
+
+describe('returns / refunds', () => {
+  it('parses the case list', () => {
+    const b = parsePayload('https://acs.aliexpress.com/h5/mtop.aliexpress.buyer.reverse.queryReverseOrderPageListForBuyer/1.0/', JSON.stringify(REVERSE_LIST));
+    expect(b.kind).toBe('refund');
+    expect(b.refunds).toHaveLength(1);
+    const r = b.refunds[0];
+    expect(r.refundId).toBe('6380000000000002');
+    expect(r.orderId).toBe('8000222333270000');
+    expect(r.orderLineId).toBe('8000222333280000');
+    expect(r.reverseType).toBe('RETURN');
+    expect(r.itemTitle).toMatch(/Brushless Motor/);
+    expect(r.itemImageUrl).toBe('https://ae-pic.example/m.jpg_220x220.jpg');
+    expect(r.itemUnitPrice).toBe(18.69);
+    expect(r.refundAmount).toBeNull(); // the list never carries the money
+    expect(r.detailed).toBe(false);
+    expect(b.totalPages).toBe(2);
+  });
+
+  it('parses the case detail for the money actually refunded', () => {
+    const b = parsePayload('https://acs.aliexpress.com/h5/mtop.aliexpress.buyer.reverse.reverseOrderLineRenderForBuyer/1.0/', JSON.stringify(REVERSE_DETAIL));
+    expect(b.refunds).toHaveLength(1);
+    const r = b.refunds[0];
+    expect(r.detailed).toBe(true);
+    expect(r.refundAmount).toBe(19.99); // more than the item price: shipping was refunded too
+    expect(r.currency).toBe('USD');
+    expect(r.refundStatus).toBe('FINISHED');
+    expect(r.caseStatus).toBe('Request complete');
+    expect(r.reason).toBe("Item defective or doesn't work");
+    expect(r.finishedAt).toBe(1785573351000);
+  });
+
+  it('builds both reverse requests without ever having seen one', () => {
+    const base = 'https://acs.aliexpress.com/h5/mtop.aliexpress.trade.buyer.order.list/1.0/?jsv=2.5.1&appKey=12574478&t=1&sign=old&api=mtop.aliexpress.trade.buyer.order.list&v=1.0&type=jsonp&dataType=jsonp&callback=cb&data=%7B%7D';
+    const list = synthesizeMtopPost(base, REVERSE_LIST_API, reverseListBody(2, 20, 'US'))!;
+    const u = new URL(list.url);
+    expect(u.pathname).toBe(`/h5/${REVERSE_LIST_API}/1.0/`);
+    expect(u.searchParams.get('appKey')).toBe('12574478');
+    expect(u.searchParams.has('data')).toBe(false); // POST carries it in the body
+    expect(u.searchParams.has('callback')).toBe(false);
+    const body = JSON.parse(decodeURIComponent(list.body.replace(/^data=/, '')));
+    expect(body).toMatchObject({ pageNo: 2, size: 20, reverseStatus: 1, shipTo: 'US', sortOrder: 'DESC' });
+
+    const detail = synthesizeMtopPost(base, REVERSE_DETAIL_API, reverseDetailBody({ reverseOrderLineId: '6380000000000002', reverseOrderId: '6380000000000001', tradeOrderId: '8000222333270000', tradeOrderLineId: '8000222333280000' }, 'US'))!;
+    const dbody = JSON.parse(decodeURIComponent(detail.body.replace(/^data=/, '')));
+    expect(dbody.terminalType).toBe('PC'); // the detail API rejects the request without it
+    expect(dbody.tradeOrderLineId).toBe('8000222333280000');
+
+    // and the signer turns either into a live request
+    const signed = buildMtopRequest({ urlTemplate: list.url, method: 'POST', bodyTemplate: list.body }, 'tok', 1790000000000);
+    expect(new URL(signed.url).searchParams.get('sign')).toHaveLength(32);
+    expect(signed.init.body).toBe(list.body);
   });
 });
