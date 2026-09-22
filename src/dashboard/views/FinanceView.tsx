@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { useItems, useJobs, useOrders, useRefunds, useSettings } from '../lib/useData';
-import { convert } from '../lib/money';
+import { convert, ratesFor } from '../lib/money';
 import { inferCategory } from '@/engine/categories';
 import { fmtMoney } from '@/shared/util';
 import { bg, inExtension, requestOrigin } from '../lib/bg';
@@ -56,6 +56,8 @@ export function FinanceView() {
   const net = total - refundedAmt;
   const shipping = real.reduce((s, o) => s + conv(o.shippingCost, o.currency), 0);
   const unconverted = real.filter((o) => o.orderTotal != null && convert(o.orderTotal, o.currency, settings) == null).length;
+  const rateInfo = ratesFor(settings);
+  const currencies = new Set(real.map((o) => o.currency));
   const byMonth = useMemo(() => {
     const m = new Map<string, number>();
     for (const o of real) { if (!o.placedAt) continue; const k = new Date(o.placedAt).toISOString().slice(0, 7); m.set(k, (m.get(k) ?? 0) + conv(o.orderTotal, o.currency)); }
@@ -102,7 +104,7 @@ export function FinanceView() {
   return (
     <div className="page">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div><h1>Finance</h1><p className="sub">Lifetime AliExpress spend in {cur}{settings.ratesUpdatedAt ? ` · rates from ${new Date(settings.ratesUpdatedAt).toLocaleDateString()}` : ' · no rate table yet (enable in Settings)'}{unconverted ? ` · ${unconverted} orders in other currencies not converted` : ''}</p></div>
+        <div><h1>Finance</h1><p className="sub">Lifetime AliExpress spend in {cur}{currencies.size > 1 ? ` · ${currencies.size} currencies converted` : ''} · {rateInfo.live ? `live rates from ${rateInfo.asOf}` : `bundled rates from ${rateInfo.asOf}`}{unconverted ? ` · ${unconverted} in an unknown currency` : ''}</p></div>
         <div className="row"><button className="btn sm" onClick={exportCsv}>Export CSV</button><button className="btn sm" onClick={() => void exportJson()}>Export JSON</button><button className="btn sm" onClick={doRates}>Refresh rates</button><button className="btn sm" onClick={() => startJob('SYNC_DETAILS', 'Fetching shipping and fees, one request per order…')} title="Reads each order's price breakdown — the order list has no shipping line">Fetch shipping &amp; fees</button><button className="btn sm" onClick={() => startJob('SYNC_REFUNDS', 'Fetching returns and refunds…')}>Fetch refunds</button></div>
       </div>
       {(status || running.length > 0) && (

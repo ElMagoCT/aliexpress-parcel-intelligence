@@ -41,28 +41,38 @@ function pageRequest(ep: EndpointRecord, page: number): { url: string; body: str
 }
 
 /** Re-fetch the learned order-list endpoint, paginating while pages yield orders. */
-export async function syncOrders(maxPages = 3, startPage = 1): Promise<SyncResult & { lastPage: number; exhausted: boolean }> {
+export async function syncOrders(maxPages = 3, startPage = 1, opts: { untilKnown?: boolean } = {}): Promise<SyncResult & { lastPage: number; exhausted: boolean; pagesRead: number }> {
   const endpoints = (await db.endpoints.where('kind').equals('orderList').toArray()).sort((a, b) => (b.pageParam ? 1 : 0) - (a.pageParam ? 1 : 0) || b.lastSeenAt - a.lastSeenAt);
-  if (!endpoints.length) return { ok: false, orders: 0, events: 0, loggedOut: false, note: `No order endpoint learned yet — open ${ORDERS_PAGE_URL} once while logged in.`, lastPage: 0, exhausted: false };
+  if (!endpoints.length) return { ok: false, orders: 0, events: 0, loggedOut: false, note: `No order endpoint learned yet — open ${ORDERS_PAGE_URL} once while logged in.`, lastPage: 0, exhausted: false, pagesRead: 0 };
   const ep = endpoints[0];
-  let orders = 0, events = 0, lastPage = startPage - 1, exhausted = false;
+  let orders = 0, events = 0, lastPage = startPage - 1, exhausted = false, pagesRead = 0, staleStreak = 0;
   for (let page = startPage; page < startPage + maxPages; page++) {
     const req = pageRequest(ep, page);
     if (!req) { exhausted = page > 1; break; }
     let r: { status: number; text: string; finalUrl: string };
-    try { r = await fetchWithRetry(req.url, ep.method, req.body); } catch (e) { return { ok: false, orders, events, loggedOut: false, note: `fetch failed: ${String(e)}`, lastPage, exhausted }; }
-    if (looksLoggedOut(r.finalUrl, r.status, r.text)) { await db.patchSettings({ loggedOut: true }); return { ok: false, orders, events, loggedOut: true, note: 'Login required', lastPage, exhausted }; }
-    if (r.status >= 500 || r.status === 429) return { ok: false, orders, events, loggedOut: false, note: `HTTP ${r.status}`, lastPage, exhausted };
+    try { r = await fetchWithRetry(req.url, ep.method, req.body); } catch (e) { return { ok: false, orders, events, loggedOut: false, note: `fetch failed: ${String(e)}`, lastPage, exhausted, pagesRead }; }
+    if (looksLoggedOut(r.finalUrl, r.status, r.text)) { await db.patchSettings({ loggedOut: true }); return { ok: false, orders, events, loggedOut: true, note: 'Login required', lastPage, exhausted, pagesRead }; }
+    if (r.status >= 500 || r.status === 429) return { ok: false, orders, events, loggedOut: false, note: `HTTP ${r.status}`, lastPage, exhausted, pagesRead };
     const bundle = parsePayload(req.url, r.text);
-    if (bundle.loginRequired) { await db.patchSettings({ loggedOut: true }); return { ok: false, orders, events, loggedOut: true, note: 'Login required', lastPage, exhausted }; }
+    if (bundle.loginRequired) { await db.patchSettings({ loggedOut: true }); return { ok: false, orders, events, loggedOut: true, note: 'Login required', lastPage, exhausted, pagesRead }; }
     await recordEndpoint(req.url, ep.method, bundle, ep.pageParam === 'body.pageIndex' ? ep.bodyTemplate : req.body);
+    // How many of this page's orders we had never seen — the signal for "we've caught up".
+    const ids = bundle.orders.map((o) => o.orderId);
+    const knownCount = ids.length ? (await db.orders.where('orderId').anyOf(ids).count()) : 0;
+    const fresh = ids.length - knownCount;
     const s = await ingestBundle(bundle, 'aliexpress');
-    orders += s.orders; events += s.events; lastPage = page;
+    orders += s.orders; events += s.events; lastPage = page; pagesRead++;
     if (bundle.hasMore === false || bundle.orders.length === 0 || !ep.pageParam) { exhausted = bundle.hasMore === false || bundle.orders.length === 0; break; }
+    // Incremental mode: statuses on recent orders still change, so always read a few pages, then
+    // stop once two pages in a row contain nothing we hadn't already stored.
+    if (opts.untilKnown) {
+      staleStreak = fresh === 0 ? staleStreak + 1 : 0;
+      if (staleStreak >= 2 && pagesRead >= 3) { exhausted = true; break; }
+    }
     await sleep(jitter(2200, 0.4));
   }
   await db.patchSettings({ loggedOut: false, lastSyncAt: Date.now(), lastSyncResult: `${orders} orders, ${events} events` });
-  return { ok: true, orders, events, loggedOut: false, note: 'ok', lastPage, exhausted };
+  return { ok: true, orders, events, loggedOut: false, note: 'ok', lastPage, exhausted, pagesRead };
 }
 
 /**

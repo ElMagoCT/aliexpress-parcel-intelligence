@@ -3,7 +3,7 @@ import { db } from '@/db/schema';
 import { useSettings, useEvents } from '../lib/useData';
 import { bg, hasOrigin, inExtension, requestOrigin } from '../lib/bg';
 import { gazetteerLookup } from '@/background/geocode';
-import { fmtDateTime, todayKey } from '@/shared/util';
+import { fmtAgo, fmtDateTime, todayKey } from '@/shared/util';
 import type { CaptureLogEntry, EndpointRecord } from '@/model/types';
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org/*';
@@ -60,6 +60,8 @@ export function SettingsView() {
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Sync</h3>
           <label className="f">Background order sync interval (minutes)<input type="number" min={30} step={30} value={s.syncIntervalMin} onChange={(e) => void db.patchSettings({ syncIntervalMin: Math.max(30, Number(e.target.value) || 180) })} /></label>
+          <label className="f" style={{ flexDirection: 'row', alignItems: 'center', margin: '10px 0' }}><input type="checkbox" checked={s.autoRefreshOnLaunch} onChange={(e) => void db.patchSettings({ autoRefreshOnLaunch: e.target.checked })} /> Catch up automatically when the extension starts and when this dashboard opens (new orders only, not the whole history)</label>
+          <div className="muted" style={{ fontSize: 12, marginBottom: 8 }}>Last catch-up: {s.lastAutoRefreshAt ? fmtAgo(s.lastAutoRefreshAt) : 'never'}</div>
           <div className="muted" style={{ fontSize: 12, margin: '8px 0' }}>Tracking polls follow parcel state (3h / 8h / 24h) automatically. {endpoints} endpoint shape{endpoints === 1 ? '' : 's'} learned from real traffic.</div>
           <label className="f" style={{ flexDirection: 'row', alignItems: 'center' }}><input type="checkbox" checked={s.notifications} onChange={(e) => void db.patchSettings({ notifications: e.target.checked })} /> Chrome notifications for deliveries, stalls and deadlines</label>
           <div className="row" style={{ marginTop: 10 }}><button className="btn sm" onClick={() => void bg({ type: 'SYNC_NOW' }).then((r) => setMsg(r.ok ? 'Sync finished.' : `Sync failed: ${(r as { error: string }).error}`))}>Sync now</button><button className="btn sm" onClick={() => void bg({ type: 'RECOMPUTE' })}>Recompute estimates</button></div>

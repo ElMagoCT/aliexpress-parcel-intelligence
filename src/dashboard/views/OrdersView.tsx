@@ -1,10 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useItems, useOrders, useParcels, useSettings } from '../lib/useData';
 import { stateTag } from '../components/ParcelPanel';
-import { fmtDate, fmtMoney } from '@/shared/util';
+import { fmtAgo, fmtDate, fmtDateTime, fmtMoney } from '@/shared/util';
 import { convert } from '../lib/money';
 
-type Key = 'placedAt' | 'sellerName' | 'orderTotal' | 'status' | 'items';
+/** AliExpress usually sends a human label ("Awaiting delivery"); fall back when it sends a code. */
+function prettyStatus(o: { rawStatus: string | null; status: string }): string {
+  const raw = o.rawStatus?.trim();
+  if (raw && !/^[A-Z][A-Z0-9_]{3,}$/.test(raw)) return raw;
+  return o.status.toLowerCase().replace(/_/g, ' ');
+}
+
+type Key = 'placedAt' | 'sellerName' | 'orderTotal' | 'status' | 'items' | 'updatedAt';
 
 export function OrdersView({ onSelect }: { onSelect: (id: string) => void }) {
   const orders = useOrders();
@@ -37,7 +44,7 @@ export function OrdersView({ onSelect }: { onSelect: (id: string) => void }) {
       {orders.length > 0 && (
         <div className="card" style={{ padding: 0, overflow: 'auto' }}>
           <table>
-            <thead><tr>{th('placedAt', 'Placed')}<th>Order</th>{th('sellerName', 'Seller')}<th>Items</th><th>Parcels</th>{th('status', 'Status')}{th('orderTotal', `Total (${settings.displayCurrency})`, true)}</tr></thead>
+            <thead><tr>{th('placedAt', 'Placed')}<th>Order</th>{th('sellerName', 'Seller')}<th>Items</th><th>Parcels</th>{th('status', 'Status')}{th('orderTotal', `Total (${settings.displayCurrency})`, true)}{th('updatedAt', 'Updated')}</tr></thead>
             <tbody>
               {rows.map((o) => {
                 const its = itemsBy.get(o.orderId) ?? [];
@@ -50,8 +57,9 @@ export function OrdersView({ onSelect }: { onSelect: (id: string) => void }) {
                     <td>{o.sellerName ?? <span className="muted">—</span>}</td>
                     <td title={its.map((i) => `${i.qty}× ${i.title}`).join('\n')}><div className="row" style={{ gap: 8, flexWrap: 'nowrap' }}><div className="thumbs">{its.slice(0, 3).map((i) => i.imageUrl ? <img key={i.itemId} src={i.imageUrl} alt="" loading="lazy" /> : <span key={i.itemId} className="ph">▣</span>)}{its.length > 3 && <span className="more">+{its.length - 3}</span>}</div><div className="muted" style={{ fontSize: 11, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{its[0]?.title}</div></div></td>
                     <td>{ps.length ? <div className="row" style={{ gap: 6 }}>{ps.map((p) => <span key={p.parcelId} style={{ cursor: 'pointer' }} onClick={() => onSelect(p.parcelId)}>{stateTag(p)}</span>)}{ps.length > 1 && <span className="tag warn">split ×{ps.length}</span>}</div> : <span className="muted">—</span>}</td>
-                    <td><span className={`tag ${o.status === 'REFUNDED' ? 'ok' : o.status === 'CLOSED' ? 'bad' : ''}`}>{o.rawStatus ?? o.status.toLowerCase().replace('_', ' ')}</span>{o.status === 'REFUNDED' && <div className="muted" style={{ fontSize: 11 }}>refunded {fmtMoney(o.refundAmount ?? o.orderTotal, o.currency)}{o.refundAmount == null ? ' (assumed)' : ''}</div>}</td>
+                    <td><span className={`tag ${o.status === 'REFUNDED' ? 'ok' : o.status === 'CLOSED' ? 'bad' : ''}`}>{prettyStatus(o)}</span>{o.status === 'REFUNDED' && <div className="muted" style={{ fontSize: 11 }}>refunded {fmtMoney(o.refundAmount ?? o.orderTotal, o.currency)}{o.refundAmount == null ? ' (assumed)' : ''}</div>}</td>
                     <td className="num" title={`${fmtMoney(o.itemsSubtotal, o.currency)} items + ${fmtMoney(o.shippingCost, o.currency)} shipping − ${fmtMoney(o.discount, o.currency)} discount + ${fmtMoney(o.tax, o.currency)} tax`}>{conv != null ? fmtMoney(conv, settings.displayCurrency) : fmtMoney(o.orderTotal, o.currency)}<div className="muted" style={{ fontSize: 11 }}>{o.currency !== settings.displayCurrency ? fmtMoney(o.orderTotal, o.currency) : `ship ${fmtMoney(o.shippingCost ?? 0, o.currency)}`}</div></td>
+                    <td className="muted" style={{ whiteSpace: 'nowrap', fontSize: 12 }} title={`Last refreshed from AliExpress: ${fmtDateTime(o.updatedAt)}`}>{fmtAgo(o.updatedAt)}</td>
                   </tr>
                 );
               })}

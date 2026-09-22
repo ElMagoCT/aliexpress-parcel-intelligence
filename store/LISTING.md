@@ -4,7 +4,7 @@ Folder contents:
 
 | File | Use |
 |---|---|
-| `parcel-intelligence-1.1.1.zip` | Upload as the package (Store dashboard → Package → Upload new package). Built from `dist/`, manifest at the zip root. |
+| `parcel-intelligence-1.2.0.zip` | Upload as the package (Store dashboard → Package → Upload new package). Built from `dist/`, manifest at the zip root. |
 | `icon-128.png` | Store icon (128×128 PNG, required). `icon-512.png` is a hi-res source if you want to edit it. |
 | `screenshots/1-map.png … 5-orders.png` | Screenshots, 1280×800 PNG (Store accepts 1280×800 or 640×400; up to 5). Upload in this order. |
 | `promo-small-440x280.png` | Small promo tile (440×280). Optional but shown in search/category pages. |
@@ -109,7 +109,7 @@ Not affiliated with AliExpress, Alibaba or Cainiao.
 
 - [ ] Load `dist/` unpacked in a fresh Chrome profile once and click through Map, Timeline, Finance, Settings; open aliexpress.com and confirm orders arrive.
 - [x] Privacy policy URL is live: https://elmagoct.github.io/parcel-intelligence/privacy.html
-- [ ] `manifest.json` version is `1.1.1` (bump for every future upload; see CHANGELOG.md).
+- [ ] `manifest.json` version is `1.2.0` (bump for every future upload; see CHANGELOG.md).
 - [ ] Review takes ~1–3 business days for a first submission; `cookies` + broad host permissions usually trigger a manual review — the justifications above address it.
 
 ## Source

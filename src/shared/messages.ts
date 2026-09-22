@@ -18,6 +18,7 @@ export type BgMessage =
   | { type: 'DEBUG_CHANNEL_ENABLED' }
   | { type: 'SYNC_REFUNDS' }
   | { type: 'SYNC_DETAILS' }
+  | { type: 'AUTO_REFRESH'; force?: boolean; trigger?: string }
   | { type: 'GET_JOBS' }
   | { type: 'RELOAD_EXT' }
   | { type: 'SYNC_TRACKING' }

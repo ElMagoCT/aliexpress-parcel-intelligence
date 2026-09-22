@@ -33,6 +33,8 @@ export function App() {
   const active = parcels.filter(isActive).length;
   const openAlerts = alerts.filter((a) => !a.dismissed);
   const urgent = openAlerts.some((a) => a.severity === 'urgent');
+  // Opening the dashboard is a "launch" too; the background de-dupes against the 10-minute gap.
+  useEffect(() => { if (inExtension) void bg({ type: 'AUTO_REFRESH', trigger: 'dashboard opened' }); }, []);
   useEffect(() => { document.documentElement.dataset.theme = settings.theme ?? 'dark'; document.documentElement.style.setProperty('--accent', settings.accent || '#6ea8ff'); }, [settings.theme, settings.accent]);
   const counts: Partial<Record<Route, { n: number; cls: string }>> = {
     map: { n: active, cls: '' }, alerts: { n: openAlerts.length, cls: urgent ? 'bad' : openAlerts.length ? 'warn' : '' },

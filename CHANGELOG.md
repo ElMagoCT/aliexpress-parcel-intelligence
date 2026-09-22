@@ -8,6 +8,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ---
 
+## [1.2.0] — 2026-09-22
+
+Keeps itself up to date without being asked, and converts every currency.
+
+### Added
+
+- **Catch-up refresh on launch.** Runs when the browser starts, when the extension is installed or
+  updated, and when the dashboard is opened. It does not re-read your whole history: it pages the
+  order list only until two consecutive pages contain nothing new, then tops up what actually goes
+  stale — tracking for active parcels, prices for orders never priced, new return cases and the
+  exchange-rate table. A ten-minute floor means repeated worker restarts can't cause repeated
+  fetching, and a switch in Settings turns the whole thing off.
+- **An "Updated" column in Orders**, showing how long ago each order was last refreshed from
+  AliExpress, with the exact timestamp on hover. Sortable, so the stalest rows can be brought to
+  the top.
+
+### Fixed
+
+- **Amounts in other currencies were left unconverted.** Conversion depended on a rate table that
+  only existed after granting an optional permission, so totals in EUR, PLN, BRL and the rest were
+  silently dropped from every figure. A 166-currency table is now bundled with the extension, so
+  everything converts out of the box; granting the permission simply swaps in fresher rates, and
+  Finance says which of the two it is using.
+- Order status showed AliExpress's raw enum (`WAIT_BUYER_ACCEPT_GOODS`) whenever the API sent a
+  code rather than a label.
+
+---
+
 ## [1.1.1] — 2026-09-21
 
 Makes the 1.1.0 features actually reachable: returns no longer need a setup step, and the service
@@ -153,6 +181,7 @@ Initial build: the whole extension in one pass, ten phases, shipped working befo
 - Not yet verified against a live account; endpoint names and DOM selectors were written from
   memory.
 
+[1.2.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.2.0
 [1.1.1]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.1.0
 

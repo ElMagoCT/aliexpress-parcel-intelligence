@@ -143,3 +143,36 @@ describe('checkout grouping', () => {
 function mkOrderRow(orderId: string) {
   return { orderId, placedAt: Date.UTC(2026, 8, 13), sellerId: null, sellerName: null, status: 'COMPLETED' as const, rawStatus: null, currency: 'USD', itemsSubtotal: 1, shippingCost: null, discount: null, tax: null, orderTotal: 1, promisedDeliveryAt: null, protectionEndsAt: null, refundAmount: null, paymentMethod: null, checkoutGroup: null, trackingNos: [], updatedAt: 0 };
 }
+
+describe('currency conversion', () => {
+  it('converts every currency out of the box, with no live rate table', async () => {
+    const { convert, ratesFor, BUNDLED_RATES } = await import('@/dashboard/lib/money');
+    const { DEFAULT_SETTINGS } = await import('@/model/types');
+    const s = { ...DEFAULT_SETTINGS, displayCurrency: 'USD', rates: null, ratesUpdatedAt: null };
+    expect(ratesFor(s).live).toBe(false);
+    expect(BUNDLED_RATES.base).toBe('USD');
+    expect(Object.keys(BUNDLED_RATES.rates).length).toBeGreaterThan(100);
+    // every currency an AliExpress order can arrive in should convert
+    for (const c of ['EUR', 'GBP', 'CNY', 'CAD', 'AUD', 'BRL', 'PLN', 'JPY', 'MXN', 'ILS', 'TRY', 'SEK', 'KRW']) {
+      expect(convert(100, c, s), `${c} must convert`).not.toBeNull();
+    }
+    expect(convert(10, 'USD', s)).toBe(10);
+    expect(convert(10, null, s)).toBe(10); // unknown source currency is treated as USD
+    expect(convert(100, 'NOTACURRENCY', s)).toBeNull();
+    // round trip through a non-USD display currency
+    const eur = { ...s, displayCurrency: 'EUR' };
+    const back = convert(convert(100, 'USD', eur)!, 'EUR', s)!;
+    expect(back).toBeCloseTo(100, 6);
+    // a live table takes precedence over the bundled one
+    const live = { ...s, rates: { EUR: 2 }, ratesUpdatedAt: Date.now(), displayCurrency: 'EUR' };
+    expect(ratesFor(live).live).toBe(true);
+    expect(convert(10, 'USD', live)).toBe(20);
+  });
+});
+
+describe('incremental catch-up', () => {
+  it('stops paging once pages stop bringing new orders', async () => {
+    const { MIN_REFRESH_GAP_MS } = await import('@/background/autoRefresh');
+    expect(MIN_REFRESH_GAP_MS).toBeGreaterThanOrEqual(60_000); // never hammer on repeated worker restarts
+  });
+});

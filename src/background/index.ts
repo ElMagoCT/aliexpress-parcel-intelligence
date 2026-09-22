@@ -7,6 +7,7 @@ import { ORDERS_PAGE_RE } from '@/adapters/aliexpress';
 import { ingestCapture } from './ingest';
 import { syncAllTracking, syncOrderDetails, syncOrders, syncRefunds, syncTrackingForOrders } from './sync';
 import { getJobs, reapStaleJobs, startJob } from './jobs';
+import { autoRefresh } from './autoRefresh';
 import type { CaptureLogEntry } from '@/model/types';
 import { backfillWatchdog, getBackfillState, onDriverProgress, onOrdersTabReady, onTabRemoved, startBackfill, stopBackfill, trickleTracking } from './backfill';
 import { pollDueParcels, pollParcel } from './tracker';
@@ -47,12 +48,18 @@ async function ensureAlarms() {
   chrome.alarms.create('rates', { periodInMinutes: 24 * 60 });
 }
 
+/** One entry point for every "the extension just came up" trigger; autoRefresh itself de-dupes. */
+function catchUp(trigger: string, force = false) {
+  return startJob('refresh', async (report) => autoRefresh(report, { trigger, force }));
+}
+
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   void ensureAlarms();
   void registerInterceptor();
+  catchUp(`extension ${reason}`);
   if (reason === 'install') void chrome.tabs.create({ url: DASHBOARD_URL + '#/setup' });
 });
-chrome.runtime.onStartup.addListener(() => { void ensureAlarms(); void registerInterceptor(); void backfillWatchdog(); scheduleRecompute(3000); });
+chrome.runtime.onStartup.addListener(() => { void ensureAlarms(); void registerInterceptor(); void backfillWatchdog(); scheduleRecompute(3000); catchUp('browser start'); });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   switch (alarm.name) {
@@ -88,6 +95,7 @@ chrome.runtime.onMessage.addListener((msg: BgMessage, sender, sendResponse: (r: 
       return false;
     case 'DEBUG_CHANNEL_ENABLED': respond(sendResponse, db.getSettings().then((s) => ({ enabled: !!s.debugChannel || !chrome.runtime.getManifest().update_url }))); return true; // unpacked (dev) installs always allow it
     case 'GET_JOBS': respond(sendResponse, getJobs().then((jobs) => ({ jobs }))); return true;
+    case 'AUTO_REFRESH': sendResponse({ ok: true, ...catchUp(msg.trigger ?? 'dashboard opened', msg.force) }); return false;
     case 'SYNC_DETAILS':
       sendResponse({ ok: true, ...startJob('details', async (report) => { const r = await syncOrderDetails(report); await recomputeAll(); return r; }) });
       return false;
@@ -110,6 +118,7 @@ chrome.runtime.onMessage.addListener((msg: BgMessage, sender, sendResponse: (r: 
         build: typeof __AEPI_BUILD__ === 'string' ? __AEPI_BUILD__ : 'dev',
         jobs: await getJobs(),
         itemsWithImage: await db.items.filter((i) => !!i.imageUrl).count(),
+        autoRefresh: { enabled: (await db.getSettings()).autoRefreshOnLaunch, lastAt: (await db.getSettings()).lastAutoRefreshAt },
         pricing: { detailed: await db.orders.filter((o) => !!o.pricingDetailed).count(), withShipping: await db.orders.filter((o) => o.shippingCost != null).count(), checkoutGroups: new Set((await db.orders.toArray()).map((o) => o.checkoutGroup).filter(Boolean)).size },
         refunds: { count: await db.refunds.count(), withAmount: await db.refunds.filter((r) => r.refundAmount != null).count(), sample: (await db.refunds.limit(3).toArray()).map((r) => ({ amt: r.refundAmount, st: r.refundStatus, cs: r.caseStatus, type: r.reverseType, sol: r.solutionText })) },
         orderStatus: (await db.orders.toArray()).reduce<Record<string, number>>((acc, o) => { const k = `${o.status}:${o.rawStatus ?? ''}`; acc[k] = (acc[k] ?? 0) + 1; return acc; }, {}),

@@ -218,6 +218,9 @@ export interface Settings {
   /** Base map: Esri dark canvas (default), streets, or satellite imagery. */
   mapStyle: 'dark' | 'streets' | 'satellite';
   /** UI theme preset and accent colour. */
+  /** Catch up on everything new whenever the extension starts or the dashboard opens. */
+  autoRefreshOnLaunch: boolean;
+  lastAutoRefreshAt: number | null;
   theme: 'dark' | 'light' | 'offwhite';
   accent: string; // hex
 }
@@ -240,6 +243,8 @@ export const DEFAULT_SETTINGS: Settings = {
   rates: null,
   debugChannel: false,
   mapStyle: 'dark',
+  autoRefreshOnLaunch: true,
+  lastAutoRefreshAt: null,
   theme: 'dark',
   accent: '#6ea8ff',
 };

@@ -66,6 +66,18 @@ export function daysBetween(a: number, b: number): number {
   return (b - a) / DAY;
 }
 
+/** "just now", "6m ago", "3h ago", "2d ago" — for last-updated stamps. */
+export function fmtAgo(ts: number | null | undefined, now = Date.now()): string {
+  if (!ts) return 'never';
+  const s = Math.max(0, (now - ts) / 1000);
+  if (s < 45) return 'just now';
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  const d = s / 86400;
+  if (d < 30) return `${Math.round(d)}d ago`;
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
+}
+
 export function fmtDays(d: number): string {
   if (!isFinite(d)) return '—';
   if (Math.abs(d) < 1) return `${Math.round(d * 24)}h`;
