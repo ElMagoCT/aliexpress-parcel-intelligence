@@ -129,11 +129,11 @@ export function FinanceView() {
         {byMonth.length ? (
           <ResponsiveContainer width="100%" height="88%">
             <BarChart data={byMonth} margin={{ left: 0, right: 8, top: 4, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: '#8b93b8', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#8b93b8', fontSize: 11 }} axisLine={false} tickLine={false} width={56} tickFormatter={(v: number) => fmtMoney(v, cur).replace(/\.\d+$/, '')} />
-              <Tooltip contentStyle={{ background: '#151d3a', border: '1px solid #263159', borderRadius: 10 }} formatter={(v) => fmtMoney(Number(v), cur)} cursor={{ fill: 'rgba(110,168,255,.08)' }} />
-              <Bar dataKey="spend" fill="#6ea8ff" radius={[6, 6, 0, 0]} />
+              <CartesianGrid stroke="color-mix(in oklab, var(--text) 10%, transparent)" vertical={false} />
+              <XAxis dataKey="month" tick={{ fill: 'var(--muted)', fontSize: 11 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: 'var(--muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={56} tickFormatter={(v: number) => fmtMoney(v, cur).replace(/\.\d+$/, '')} />
+              <Tooltip contentStyle={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 10, color: 'var(--text)' }} formatter={(v) => fmtMoney(Number(v), cur)} cursor={{ fill: 'var(--accent-soft)' }} />
+              <Bar dataKey="spend" fill="var(--accent)" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : <div className="empty">No dated orders yet.</div>}

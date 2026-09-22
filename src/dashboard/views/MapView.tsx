@@ -22,7 +22,18 @@ const TILE_STYLES: Record<'dark' | 'streets' | 'satellite', { layers: { url: str
 
 interface Row { p: Parcel; route: Route; items: Item[]; itemCount: number; cls: string }
 
-const COLORS = { path: '#6ea8ff', pathDim: 'rgba(110,168,255,.28)', sel: '#c4b5fd', inferred: 'rgba(155,123,255,.9)', proj: 'rgba(155,123,255,.55)' };
+/**
+ * Leaflet writes `stroke` as an SVG attribute, where `var(--accent)` would not resolve, so the
+ * themed colours are read off the document and recomputed whenever the accent changes.
+ */
+function routeColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string) => cs.getPropertyValue(name).trim() || fallback;
+  const accent = v('--accent', '#6ea8ff');
+  const accent2 = v('--accent2', '#9b7bff');
+  const mix = (c: string, pct: number) => `color-mix(in oklab, ${c} ${pct}%, transparent)`;
+  return { path: accent, pathDim: mix(accent, 28), sel: accent2, inferred: mix(accent2, 90), proj: mix(accent2, 55), faint: mix(accent, 20), faintAlt: mix(accent2, 30) };
+}
 
 function clsFor(p: Parcel) {
   return p.state === 'STALLED' ? 'warn' : p.state === 'EXCEPTION' || p.state === 'RETURNED' ? 'bad' : p.state === 'DELIVERED' || p.state === 'OUT_FOR_DELIVERY' ? 'ok' : '';
@@ -98,6 +109,7 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
   useEffect(() => {
     const map = mapRef.current, layer = layerRef.current;
     if (!map || !layer) return;
+    const COLORS = routeColors();
     layer.eachLayer((l) => { const m = l as L.Marker; if (typeof m.unbindTooltip === 'function') m.unbindTooltip(); });
     layer.clearLayers();
     if (home) L.marker(ll(home), { icon: L.divIcon({ className: '', html: '<div class="home" title="Home"></div>', iconSize: [14, 14] }), zIndexOffset: 500 }).addTo(layer);
@@ -107,13 +119,13 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
       for (let i = 1; i < pts.length; i++) {
         const a = pts[i - 1], b = pts[i];
         const inferred = a.inferred || b.inferred;
-        L.polyline([ll(a), ll(b)], { color: strong ? (inferred ? COLORS.inferred : COLORS.sel) : inferred ? 'rgba(155,123,255,.3)' : COLORS.pathDim, weight: strong ? 3.5 : 1.5, dashArray: inferred ? '5 7' : undefined, opacity: 1 }).addTo(layer);
+        L.polyline([ll(a), ll(b)], { color: strong ? (inferred ? COLORS.inferred : COLORS.sel) : inferred ? COLORS.faintAlt : COLORS.pathDim, weight: strong ? 3.5 : 1.5, dashArray: inferred ? '5 7' : undefined, opacity: 1 }).addTo(layer);
       }
       if (strong) for (const pt of pts) L.circleMarker(ll(pt), { radius: pt.inferred ? 3 : 4, color: '#fff', weight: 1, fillColor: pt.inferred ? COLORS.inferred : COLORS.sel, fillOpacity: 1 }).bindTooltip(`${pt.label}<br><span style="opacity:.7">${fmtDate(pt.ts, { month: 'short', day: 'numeric', year: 'numeric' })}${pt.inferred ? ' · position inferred from milestone' : ''}</span>`, { direction: 'top' }).addTo(layer);
       // projected remainder to home
       const cur = r.route.current;
       if (cur && home && r.p.state !== 'DELIVERED' && (Math.abs(cur.lat - home.lat) > 0.05 || Math.abs(cur.lng - home.lng) > 0.05)) {
-        L.polyline([ll(cur), ll(home)], { color: strong ? COLORS.proj : 'rgba(155,123,255,.2)', weight: strong ? 2.5 : 1, dashArray: '2 8' }).addTo(layer);
+        L.polyline([ll(cur), ll(home)], { color: strong ? COLORS.proj : COLORS.faintAlt, weight: strong ? 2.5 : 1, dashArray: '2 8' }).addTo(layer);
       }
     };
     const sel = rows.find((r) => r.p.parcelId === selectedId);
@@ -154,7 +166,7 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
       }
       for (const r of c.members) marker(r, r.p.parcelId === selectedId);
     }
-  }, [rows, groups, selectedId, home, zoomTick, predsBy, onSelect]);
+  }, [rows, groups, selectedId, home, zoomTick, predsBy, onSelect, settings.accent, settings.theme]);
 
   // Fit once (again when home appears); refit to the route when a parcel is picked
   // Initial framing: data arrives table by table (parcels, then events, then settings), so keep

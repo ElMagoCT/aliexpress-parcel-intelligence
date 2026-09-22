@@ -8,6 +8,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ---
 
+## [1.3.0] — 2026-09-22
+
+The accent colour now re-tones the entire interface instead of tinting a few buttons.
+
+### Changed
+
+- **Every surface is mixed from the accent.** In dark mode the background, panels and the corner
+  glow take their tone from it, so an orange accent gives a warm near-black rather than the same
+  blue-black with orange buttons. In the light and off-white themes the cards carry the tint, which
+  is where it reads best on a pale background. Base colours stay near-neutral and the accent is
+  blended in at a few percent over large areas and more over small ones.
+- The spend chart, the map's route lines, parcel markers, the time scrubber and every focus ring
+  follow the accent as well. Leaflet writes `stroke` as an SVG attribute, where a CSS variable
+  would not resolve, so the map reads the resolved colours off the document and redraws when the
+  accent changes.
+
+### Fixed
+
+- **Cards stayed dark in the light and off-white themes.** `.card` painted a hardcoded dark
+  gradient that ignored the theme entirely, so every panel on a white background was still
+  near-black. This is why switching theme appeared to do so little.
+- The map canvas, chart axes, grid, tooltip and several selection highlights were pinned to the
+  original dark palette and ignored both the theme and the accent.
+
+---
+
 ## [1.2.0] — 2026-09-22
 
 Keeps itself up to date without being asked, and converts every currency.
@@ -181,6 +207,7 @@ Initial build: the whole extension in one pass, ten phases, shipped working befo
 - Not yet verified against a live account; endpoint names and DOM selectors were written from
   memory.
 
+[1.3.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.2.0
 [1.1.1]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.1.0

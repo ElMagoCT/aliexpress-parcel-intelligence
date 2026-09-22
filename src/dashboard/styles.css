@@ -1,20 +1,56 @@
+/**
+ * Theming. The accent is not just a highlight colour: every surface is mixed from it, so picking a
+ * new accent re-tones the background in dark mode and the cards in the light modes. Base colours
+ * stay near-neutral and the accent is blended in at a few percent for large areas, more for small
+ * ones. `color-mix(in oklab, A 88%, B)` gives B the remaining 12%.
+ */
 :root {
-  --bg: #0b1020; --bg2: #111832; --panel: #151d3a; --panel2: #1b2447; --line: #263159; --text: #e6e9f5; --muted: #8b93b8;
-  --accent: #6ea8ff; --accent2: color-mix(in oklch, var(--accent), #c084fc 55%); --ok: #34d399; --warn: #fbbf24; --bad: #f87171; --info: #60a5fa;
+  --accent: #6ea8ff;
+  --accent2: color-mix(in oklch, var(--accent), #c084fc 55%);
+  --accent-soft: color-mix(in oklab, var(--accent) 20%, transparent);
+  --accent-line: color-mix(in oklab, var(--accent) 40%, transparent);
+  --accent-ring: color-mix(in oklab, var(--accent) 28%, transparent);
+
+  --bg: color-mix(in oklab, #070b16 88%, var(--accent));
+  --bg2: color-mix(in oklab, #0d1324 86%, var(--accent));
+  --panel: color-mix(in oklab, #121a33 85%, var(--accent));
+  --panel2: color-mix(in oklab, #18213f 80%, var(--accent));
+  --line: color-mix(in oklab, #222c52 78%, var(--accent));
+  --text: #e6e9f5; --muted: #8b93b8;
+  --ok: #34d399; --warn: #fbbf24; --bad: #f87171; --info: #60a5fa;
   --radius: 14px; --shadow: 0 10px 30px rgba(0,0,0,.35);
-  --map-land: #1a2447; --map-border: #2b365f; --ground: radial-gradient(1200px 800px at 80% -10%, #1a2350 0%, var(--bg) 60%);
+  --map-land: color-mix(in oklab, #16203f 86%, var(--accent));
+  --map-border: color-mix(in oklab, #28345f 80%, var(--accent));
+  /* The corner glow carries most of the accent, which is what makes the background read as tinted. */
+  --ground: radial-gradient(1200px 800px at 80% -10%, color-mix(in oklab, var(--bg) 62%, var(--accent)) 0%, var(--bg) 62%);
   --on-accent: #0b1020;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color-scheme: dark;
 }
 :root[data-theme="light"] {
-  --bg: #ffffff; --bg2: #f3f5fb; --panel: #ffffff; --panel2: #eef1f8; --line: #dfe4f0; --text: #111827; --muted: #64708a;
-  --ok: #059669; --warn: #b45309; --bad: #dc2626; --info: #2563eb; --shadow: 0 10px 30px rgba(16,24,40,.08);
-  --map-land: #e7ebf5; --map-border: #c9d1e3; --ground: radial-gradient(1200px 800px at 80% -10%, #eef2ff 0%, var(--bg) 60%); --on-accent: #ffffff; color-scheme: light;
+  --bg: color-mix(in oklab, #ffffff 95%, var(--accent));
+  --bg2: color-mix(in oklab, #f2f5fc 90%, var(--accent));
+  --panel: color-mix(in oklab, #ffffff 90%, var(--accent));
+  --panel2: color-mix(in oklab, #eef1f8 82%, var(--accent));
+  --line: color-mix(in oklab, #dde3ef 72%, var(--accent));
+  --text: #111827; --muted: #64708a;
+  --ok: #059669; --warn: #b45309; --bad: #dc2626; --info: #2563eb; --shadow: 0 10px 30px rgba(16,24,40,.10);
+  --map-land: color-mix(in oklab, #e7ebf5 88%, var(--accent));
+  --map-border: color-mix(in oklab, #c9d1e3 80%, var(--accent));
+  --ground: radial-gradient(1200px 800px at 80% -10%, color-mix(in oklab, #ffffff 78%, var(--accent)) 0%, var(--bg) 60%);
+  --on-accent: #ffffff; color-scheme: light;
 }
 :root[data-theme="offwhite"] {
-  --bg: #f6f2ea; --bg2: #efe9dd; --panel: #fbf8f2; --panel2: #efe9dd; --line: #e0d8c8; --text: #2a2622; --muted: #7a7266;
-  --ok: #15803d; --warn: #b45309; --bad: #b91c1c; --info: #1d4ed8; --shadow: 0 10px 30px rgba(60,50,30,.10);
-  --map-land: #e9e2d3; --map-border: #d3c9b5; --ground: radial-gradient(1200px 800px at 80% -10%, #fdf7ea 0%, var(--bg) 60%); --on-accent: #ffffff; color-scheme: light;
+  --bg: color-mix(in oklab, #f7f3ec 94%, var(--accent));
+  --bg2: color-mix(in oklab, #efe9dd 90%, var(--accent));
+  --panel: color-mix(in oklab, #fdfaf4 88%, var(--accent));
+  --panel2: color-mix(in oklab, #efe9dd 82%, var(--accent));
+  --line: color-mix(in oklab, #e2dac9 70%, var(--accent));
+  --text: #2a2622; --muted: #7a7266;
+  --ok: #15803d; --warn: #b45309; --bad: #b91c1c; --info: #1d4ed8; --shadow: 0 10px 30px rgba(60,50,30,.12);
+  --map-land: color-mix(in oklab, #e9e2d3 88%, var(--accent));
+  --map-border: color-mix(in oklab, #d3c9b5 80%, var(--accent));
+  --ground: radial-gradient(1200px 800px at 80% -10%, color-mix(in oklab, #fdf7ea 76%, var(--accent)) 0%, var(--bg) 60%);
+  --on-accent: #ffffff; color-scheme: light;
 }
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
@@ -28,7 +64,7 @@ button { font: inherit; }
 .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent2)); box-shadow: 0 0 18px var(--accent); }
 .nav { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; color: var(--muted); cursor: pointer; border: 1px solid transparent; transition: background .18s, color .18s, transform .18s; }
 .nav:hover { background: var(--panel); color: var(--text); transform: translateX(2px); }
-.nav.active { background: linear-gradient(90deg, rgba(110,168,255,.18), rgba(155,123,255,.10)); color: var(--text); border-color: rgba(110,168,255,.25); }
+.nav.active { background: linear-gradient(90deg, var(--accent-soft), color-mix(in oklab, var(--accent2) 12%, transparent)); color: var(--text); border-color: var(--accent-line); }
 .nav .n { margin-left: auto; font-size: 11px; background: var(--panel2); padding: 2px 7px; border-radius: 999px; color: var(--muted); }
 .nav .n.warn { background: rgba(251,191,36,.18); color: var(--warn); }
 .nav .n.bad { background: rgba(248,113,113,.18); color: var(--bad); }
@@ -42,7 +78,7 @@ button { font: inherit; }
 .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .grid { display: grid; gap: 14px; }
 .grid.kpis { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
-.card { background: linear-gradient(180deg, rgba(27,36,71,.85), rgba(21,29,58,.85)); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+.card { background: linear-gradient(180deg, color-mix(in oklab, var(--panel) 90%, var(--accent)), var(--panel)); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
 .kpi .v { font-size: 26px; font-weight: 700; letter-spacing: -.5px; }
 .kpi .l { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
 .btn { background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; transition: transform .12s, background .18s, border-color .18s; }
@@ -52,7 +88,7 @@ button { font: inherit; }
 .btn.sm { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 input, select, textarea { background: var(--bg2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; }
-input:focus, select:focus { outline: 2px solid rgba(110,168,255,.4); border-color: var(--accent); }
+input:focus, select:focus { outline: 2px solid var(--accent-line); border-color: var(--accent); }
 label.f { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--muted); }
 label.f > input, label.f > select { min-width: 220px; }
 .tag { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; padding: 3px 8px; border-radius: 999px; background: var(--panel2); color: var(--muted); border: 1px solid var(--line); }
@@ -75,7 +111,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .plist-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 14px 10px; position: sticky; top: 0; background: color-mix(in srgb, var(--bg) 95%, transparent); border-bottom: 1px solid var(--line); z-index: 2; }
 .pcard { display: grid; grid-template-columns: 72px 1fr; gap: 10px; padding: 10px 12px; margin: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; transition: border-color .18s, transform .18s, background .18s; }
 .pcard:hover { border-color: var(--accent); transform: translateX(2px); }
-.pcard.sel { border-color: var(--accent2); background: linear-gradient(90deg, rgba(155,123,255,.16), rgba(110,168,255,.08)); box-shadow: 0 0 0 1px rgba(155,123,255,.35); }
+.pcard.sel { border-color: var(--accent2); background: linear-gradient(90deg, color-mix(in oklab, var(--accent2) 18%, transparent), var(--accent-soft)); box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent2) 38%, transparent); }
 .pthumbs { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; width: 72px; height: 72px; }
 .pthumbs img, .pthumbs .ph { width: 100%; height: 100%; border-radius: 6px; object-fit: cover; background: var(--panel2); display: flex; align-items: center; justify-content: center; color: var(--muted); }
 .pthumbs img:only-of-type, .pthumbs .ph:only-of-type { grid-column: 1 / -1; grid-row: 1 / -1; }
@@ -84,13 +120,13 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .ptitle { font-size: 13px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .peta { font-size: 12px; }
 .mapcol { position: relative; min-width: 0; }
-.map { position: absolute; inset: 0; background: #0b1020; }
-.pk { position: relative; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 0 0 4px rgba(110,168,255,.25), 0 4px 10px rgba(0,0,0,.4); transition: transform .2s; }
+.map { position: absolute; inset: 0; background: var(--bg); }
+.pk { position: relative; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 0 0 4px var(--accent-ring), 0 4px 10px rgba(0,0,0,.4); transition: transform .2s; }
 .pk.warn { background: var(--warn); box-shadow: 0 0 0 4px rgba(251,191,36,.25), 0 4px 10px rgba(0,0,0,.4); }
 .pk.bad { background: var(--bad); box-shadow: 0 0 0 4px rgba(248,113,113,.25); }
 .pk.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(52,211,153,.25); }
 .pk.group { background: linear-gradient(135deg, #fbbf24, #f97316); width: 32px; height: 32px; }
-.pk.sel { transform: scale(1.3); background: var(--accent2); color: #fff; box-shadow: 0 0 0 6px rgba(155,123,255,.35), 0 6px 16px rgba(0,0,0,.5); }
+.pk.sel { transform: scale(1.3); background: var(--accent2); color: #fff; box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent2) 38%, transparent), 0 6px 16px rgba(0,0,0,.5); }
 .pk.pulse::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid currentColor; opacity: .6; animation: pulse 1.6s ease-out infinite; }
 .cluster small { display: block; font-size: 8px; font-weight: 600; line-height: 1; opacity: .8; }
 .cluster { width: 40px; height: 40px; flex-direction: column; line-height: 1.1; }
@@ -101,11 +137,11 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .legend .sw.dotted { border-top: 3px dotted var(--accent2); }
 .leaflet-bottom.leaflet-right { bottom: 64px; }
 @media (max-width: 1100px) { .mapwrap { grid-template-columns: 1fr 280px; } }
-.leaflet-container { background: #0b1020; font: inherit; }
+.leaflet-container { background: var(--bg); font: inherit; }
 .leaflet-control-attribution { background: rgba(11,16,32,.7) !important; color: var(--muted) !important; font-size: 10px; }
 .leaflet-control-attribution a { color: var(--accent) !important; }
 .leaflet-bar a { background: var(--panel) !important; color: var(--text) !important; border-color: var(--line) !important; }
-.mk { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 4px rgba(110,168,255,.25), 0 4px 10px rgba(0,0,0,.4); background: var(--accent); transition: transform .2s; }
+.mk { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 4px var(--accent-ring), 0 4px 10px rgba(0,0,0,.4); background: var(--accent); transition: transform .2s; }
 .mk.warn { background: var(--warn); box-shadow: 0 0 0 4px rgba(251,191,36,.25), 0 4px 10px rgba(0,0,0,.4); }
 .mk.bad { background: var(--bad); box-shadow: 0 0 0 4px rgba(248,113,113,.25), 0 4px 10px rgba(0,0,0,.4); }
 .mk.ok { background: var(--ok); box-shadow: 0 0 0 4px rgba(52,211,153,.25); }
@@ -155,10 +191,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .bar:hover { border-color: var(--accent); transform: translateY(-1px); }
 .bar .name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track { position: relative; height: 18px; background: var(--bg2); border-radius: 999px; overflow: visible; }
-.track .el { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, rgba(110,168,255,.55), var(--accent)); border-radius: 999px; }
-.track .win { position: absolute; top: 0; bottom: 0; background: rgba(155,123,255,.45); border-radius: 999px; border: 1px solid rgba(155,123,255,.8); }
+.track .el { position: absolute; top: 0; bottom: 0; left: 0; background: linear-gradient(90deg, color-mix(in oklab, var(--accent) 55%, transparent), var(--accent)); border-radius: 999px; }
+.track .win { position: absolute; top: 0; bottom: 0; background: color-mix(in oklab, var(--accent2) 45%, transparent); border-radius: 999px; border: 1px solid color-mix(in oklab, var(--accent2) 80%, transparent); }
 .track .promise { position: absolute; top: -4px; width: 2px; height: 26px; background: var(--warn); }
-.track .today { position: absolute; top: -6px; width: 1px; height: 30px; background: rgba(255,255,255,.35); }
+.track .today { position: absolute; top: -6px; width: 1px; height: 30px; background: color-mix(in oklab, var(--text) 40%, transparent); }
 .axis { position: relative; height: 18px; margin-left: 252px; margin-right: 122px; color: var(--muted); font-size: 11px; }
 .axis span { position: absolute; transform: translateX(-50%); }
 
