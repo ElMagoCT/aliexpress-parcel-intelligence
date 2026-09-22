@@ -109,6 +109,10 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .mapwrap { display: grid; grid-template-columns: 1fr 340px; flex: 1; min-height: 0; }
 .plist { border-left: 1px solid var(--line); overflow: auto; background: color-mix(in srgb, var(--bg) 60%, transparent); }
 .plist-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 14px 14px 10px; position: sticky; top: 0; background: color-mix(in srgb, var(--bg) 95%, transparent); border-bottom: 1px solid var(--line); z-index: 2; }
+.ptools { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.ptools .stale { background: color-mix(in oklab, var(--warn) 14%, transparent); border: 1px solid color-mix(in oklab, var(--warn) 35%, transparent); border-radius: 10px; padding: 10px 12px; font-size: 12.5px; }
+.ptools .addform { display: flex; flex-direction: column; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.ptools .addform input, .ptools .addform select { width: 100%; }
 .pcard { display: grid; grid-template-columns: 72px 1fr; gap: 10px; padding: 10px 12px; margin: 8px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); cursor: pointer; transition: border-color .18s, transform .18s, background .18s; }
 .pcard:hover { border-color: var(--accent); transform: translateX(2px); }
 .pcard.sel { border-color: var(--accent2); background: linear-gradient(90deg, color-mix(in oklab, var(--accent2) 18%, transparent), var(--accent-soft)); box-shadow: 0 0 0 1px color-mix(in oklab, var(--accent2) 38%, transparent); }

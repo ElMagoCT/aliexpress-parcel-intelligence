@@ -8,6 +8,8 @@ import { ingestCapture } from './ingest';
 import { syncAllTracking, syncOrderDetails, syncOrders, syncRefunds, syncTrackingForOrders } from './sync';
 import { getJobs, reapStaleJobs, startJob } from './jobs';
 import { autoRefresh } from './autoRefresh';
+import { addManualParcel, closeAbandoned, listAbandoned, setParcelState } from './manual';
+import { parseShoppingPage } from '@/adapters/pageCapture';
 import type { CaptureLogEntry } from '@/model/types';
 import { backfillWatchdog, getBackfillState, onDriverProgress, onOrdersTabReady, onTabRemoved, startBackfill, stopBackfill, trickleTracking } from './backfill';
 import { pollDueParcels, pollParcel } from './tracker';
@@ -94,6 +96,11 @@ chrome.runtime.onMessage.addListener((msg: BgMessage, sender, sendResponse: (r: 
       sendResponse({ ok: true, ...startJob('tracking', async (report) => { const tr = await syncAllTracking(report, false, 400); await recomputeAll(); return tr; }) });
       return false;
     case 'DEBUG_CHANNEL_ENABLED': respond(sendResponse, db.getSettings().then((s) => ({ enabled: !!s.debugChannel || !chrome.runtime.getManifest().update_url }))); return true; // unpacked (dev) installs always allow it
+    case 'SET_PARCEL_STATE': respond(sendResponse, setParcelState(msg.parcelId, msg.state)); return true;
+    case 'ADD_PARCEL': respond(sendResponse, addManualParcel(msg.input).then((r) => ({ ...r }))); return true;
+    case 'LIST_ABANDONED': respond(sendResponse, listAbandoned().then((parcels) => ({ parcels }))); return true;
+    case 'CLOSE_ABANDONED': respond(sendResponse, closeAbandoned(msg.state ?? 'archived').then((closed) => ({ closed }))); return true;
+    case 'PARSE_PAGE': respond(sendResponse, Promise.resolve({ item: parseShoppingPage(msg.harvest) })); return true;
     case 'GET_JOBS': respond(sendResponse, getJobs().then((jobs) => ({ jobs }))); return true;
     case 'AUTO_REFRESH': sendResponse({ ok: true, ...catchUp(msg.trigger ?? 'dashboard opened', msg.force) }); return false;
     case 'SYNC_DETAILS':

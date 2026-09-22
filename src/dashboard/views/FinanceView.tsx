@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { useItems, useJobs, useOrders, useRefunds, useSettings } from '../lib/useData';
 import { convert, ratesFor } from '../lib/money';
 import { inferCategory } from '@/engine/categories';
+import { PLATFORM_LABEL, type Platform } from '@/model/types';
 import { fmtMoney } from '@/shared/util';
 import { bg, inExtension, requestOrigin } from '../lib/bg';
 import { db } from '@/db/schema';
@@ -25,10 +26,35 @@ export function FinanceView() {
   const items = useItems();
   const settings = useSettings();
   const cur = settings.displayCurrency;
-  const real = useMemo(() => orders.filter((o) => o.status !== 'CLOSED' && o.status !== 'AWAITING_PAYMENT'), [orders]);
+  const [range, setRange] = useState('all');
+  const [plat, setPlat] = useState<'all' | Platform>('all');
+
+  const years = useMemo(() => [...new Set(orders.map((o) => (o.placedAt ? new Date(o.placedAt).getFullYear() : null)).filter((y): y is number => !!y))].sort((a, b) => b - a), [orders]);
+  const rangeStart = useMemo(() => {
+    const now = new Date();
+    if (range === '30d') return Date.now() - 30 * 86400000;
+    if (range === '90d') return Date.now() - 90 * 86400000;
+    if (range === '12m') return Date.now() - 365 * 86400000;
+    if (range === 'ytd') return new Date(now.getFullYear(), 0, 1).getTime();
+    if (range.startsWith('y:')) return new Date(Number(range.slice(2)), 0, 1).getTime();
+    return null;
+  }, [range]);
+  const rangeEnd = useMemo(() => (range.startsWith('y:') ? new Date(Number(range.slice(2)) + 1, 0, 1).getTime() : null), [range]);
+  const inScope = useMemo(() => (o: { placedAt: number | null; platform: Platform }) => {
+    if (plat !== 'all' && o.platform !== plat) return false;
+    if (rangeStart == null) return true;
+    if (o.placedAt == null) return false;
+    return o.placedAt >= rangeStart && (rangeEnd == null || o.placedAt < rangeEnd);
+  }, [plat, rangeStart, rangeEnd]);
+
+  const scoped = useMemo(() => orders.filter(inScope), [orders, inScope]);
+  const rangeLabel = range === 'all' ? 'All time' : range === '30d' ? 'Last 30 days' : range === '90d' ? 'Last 90 days'
+    : range === '12m' ? 'Last 12 months' : range === 'ytd' ? 'This year so far' : range.startsWith('y:') ? range.slice(2) : 'All time';
+  const real = useMemo(() => scoped.filter((o) => o.status !== 'CLOSED' && o.status !== 'AWAITING_PAYMENT'), [scoped]);
   const refundRows = useRefunds();
-  const refunded = useMemo(() => orders.filter((o) => o.status === 'REFUNDED' || (o.refundAmount ?? 0) > 0), [orders]);
-  const cancelled = useMemo(() => orders.filter((o) => o.status === 'CLOSED'), [orders]);
+  const scopedItems = useMemo(() => { const ids = new Set(real.map((o) => o.orderId)); return items.filter((i) => ids.has(i.orderId)); }, [items, real]);
+  const refunded = useMemo(() => scoped.filter((o) => o.status === 'REFUNDED' || (o.refundAmount ?? 0) > 0), [scoped]);
+  const cancelled = useMemo(() => scoped.filter((o) => o.status === 'CLOSED'), [scoped]);
   const conv = (amt: number | null | undefined, from: string) => convert(amt, from, settings) ?? 0;
   const total = real.reduce((s, o) => s + conv(o.orderTotal, o.currency), 0);
   const refundedAmt = refunded.reduce((s, o) => s + conv(o.refundAmount ?? o.orderTotal, o.currency), 0);
@@ -48,9 +74,9 @@ export function FinanceView() {
       total: os.reduce((x, o) => x + conv(o.orderTotal, o.currency), 0),
       shipping: os.reduce((x, o) => x + conv(o.shippingCost, o.currency), 0),
       sellers: new Set(os.map((o) => o.sellerName ?? '?')).size,
-      items: items.filter((i) => os.some((o) => o.orderId === i.orderId)).reduce((x, i) => x + i.qty, 0),
+      items: scopedItems.filter((i) => os.some((o) => o.orderId === i.orderId)).reduce((x, i) => x + i.qty, 0),
     })).sort((a, b) => b.placedAt - a.placedAt);
-  }, [real, items, settings]);
+  }, [real, scopedItems, settings]);
   const multiTrips = trips.filter((t) => t.orders.length > 1);
   const cancelledAmt = cancelled.reduce((s, o) => s + conv(o.orderTotal, o.currency), 0);
   const net = total - refundedAmt;
@@ -64,12 +90,17 @@ export function FinanceView() {
     return [...m.entries()].sort().map(([month, spend]) => ({ month, spend: +spend.toFixed(2) }));
   }, [real, settings]);
   const bySeller = useMemo(() => { const m = new Map<string, { n: number; spend: number }>(); for (const o of real) { const k = o.sellerName ?? 'Unknown seller'; const v = m.get(k) ?? { n: 0, spend: 0 }; v.n++; v.spend += conv(o.orderTotal, o.currency); m.set(k, v); } return [...m.entries()].sort((a, b) => b[1].spend - a[1].spend).slice(0, 12); }, [real, settings]);
+  const byPlatform = useMemo(() => {
+    const m = new Map<Platform, { n: number; spend: number }>();
+    for (const o of real) { const k = o.platform ?? 'other'; const v = m.get(k) ?? { n: 0, spend: 0 }; v.n++; v.spend += conv(o.orderTotal, o.currency); m.set(k, v); }
+    return [...m.entries()].sort((a, b) => b[1].spend - a[1].spend);
+  }, [real, settings]);
   const byCategory = useMemo(() => {
     const m = new Map<string, number>();
     const orderCur = new Map(orders.map((o) => [o.orderId, o.currency]));
-    for (const it of items) { const c = inferCategory(it.title); m.set(c, (m.get(c) ?? 0) + conv((it.unitPrice ?? 0) * it.qty, it.currency ?? orderCur.get(it.orderId) ?? 'USD')); }
+    for (const it of scopedItems) { const c = inferCategory(it.title); m.set(c, (m.get(c) ?? 0) + conv((it.unitPrice ?? 0) * it.qty, it.currency ?? orderCur.get(it.orderId) ?? 'USD')); }
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [items, orders, settings]);
+  }, [scopedItems, orders, settings]);
   const aov = real.length ? total / real.length : 0;
 
   const startJob = (type: 'SYNC_DETAILS' | 'SYNC_REFUNDS', msg: string) => {
@@ -104,8 +135,30 @@ export function FinanceView() {
   return (
     <div className="page">
       <div className="row" style={{ justifyContent: 'space-between' }}>
-        <div><h1>Finance</h1><p className="sub">Lifetime AliExpress spend in {cur}{currencies.size > 1 ? ` · ${currencies.size} currencies converted` : ''} · {rateInfo.live ? `live rates from ${rateInfo.asOf}` : `bundled rates from ${rateInfo.asOf}`}{unconverted ? ` · ${unconverted} in an unknown currency` : ''}</p></div>
+        <div><h1>Finance</h1><p className="sub">{rangeLabel} · {plat === 'all' ? 'all stores' : PLATFORM_LABEL[plat]} · in {cur}{currencies.size > 1 ? ` · ${currencies.size} currencies converted` : ''} · {rateInfo.live ? `live rates from ${rateInfo.asOf}` : `bundled rates from ${rateInfo.asOf}`}{unconverted ? ` · ${unconverted} in an unknown currency` : ''}</p></div>
         <div className="row"><button className="btn sm" onClick={exportCsv}>Export CSV</button><button className="btn sm" onClick={() => void exportJson()}>Export JSON</button><button className="btn sm" onClick={doRates}>Refresh rates</button><button className="btn sm" onClick={() => startJob('SYNC_DETAILS', 'Fetching shipping and fees, one request per order…')} title="Reads each order's price breakdown — the order list has no shipping line">Fetch shipping &amp; fees</button><button className="btn sm" onClick={() => startJob('SYNC_REFUNDS', 'Fetching returns and refunds…')}>Fetch refunds</button></div>
+      </div>
+      <div className="row" style={{ gap: 8, margin: '0 0 14px' }}>
+        <label className="f" style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <span className="muted" style={{ fontSize: 12 }}>Period</span>
+          <select value={range} onChange={(e) => setRange(e.target.value)}>
+            <option value="all">All time</option>
+            <option value="30d">Last 30 days</option>
+            <option value="90d">Last 90 days</option>
+            <option value="12m">Last 12 months</option>
+            <option value="ytd">This year so far</option>
+            {years.map((y) => <option key={y} value={`y:${y}`}>{y}</option>)}
+          </select>
+        </label>
+        <div className="row" style={{ gap: 6 }}>
+          <button className={`btn sm ${plat === 'all' ? 'primary' : ''}`} onClick={() => setPlat('all')}>All stores {orders.length}</button>
+          {[...new Set(orders.map((o) => o.platform ?? 'other'))].map((pf) => (
+            <button key={pf} className={`btn sm ${plat === pf ? 'primary' : ''}`} onClick={() => setPlat(pf)}>
+              {PLATFORM_LABEL[pf]} {orders.filter((o) => (o.platform ?? 'other') === pf).length}
+            </button>
+          ))}
+        </div>
+        {(range !== 'all' || plat !== 'all') && <button className="btn sm" onClick={() => { setRange('all'); setPlat('all'); }}>Clear</button>}
       </div>
       {(status || running.length > 0) && (
         <div className="card" style={{ margin: '0 0 14px', borderColor: running.length ? 'rgba(110,168,255,.45)' : undefined }}>
@@ -122,7 +175,7 @@ export function FinanceView() {
         <div className="card kpi"><div className="l">Average order</div><div className="v">{fmtMoney(aov, cur)}</div></div>
         <div className="card kpi"><div className="l">Shipping share</div><div className="v">{priced ? (total ? `${((shipping / total) * 100).toFixed(1)}%` : '—') : '—'}</div><div className="muted" style={{ fontSize: 12 }}>{priced ? `${fmtMoney(shipping, cur)} across ${priced} priced order${priced === 1 ? '' : 's'}` : 'Not known yet — the order list has no shipping line. Click “Fetch shipping & fees”.'}</div></div>
         <div className="card kpi"><div className="l">Checkouts</div><div className="v">{trips.length}</div><div className="muted" style={{ fontSize: 12 }}>{multiTrips.length} with several orders at once</div></div>
-        <div className="card kpi"><div className="l">Items</div><div className="v">{items.reduce((s, i) => s + i.qty, 0)}</div></div>
+        <div className="card kpi"><div className="l">Items</div><div className="v">{scopedItems.reduce((s, i) => s + i.qty, 0)}</div></div>
       </div>
       <div className="card" style={{ height: 300, marginBottom: 14 }}>
         <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>SPEND BY MONTH</div>
@@ -170,6 +223,14 @@ export function FinanceView() {
         <div className="card">
           <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>TOP SELLERS</div>
           <table><tbody>{bySeller.map(([s, v]) => <tr key={s}><td>{s}</td><td className="num muted">{v.n} orders</td><td className="num">{fmtMoney(v.spend, cur)}</td></tr>)}</tbody></table>
+        </div>
+        <div className="card">
+          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>SPEND BY STORE</div>
+          <table><tbody>{byPlatform.map(([pf, v]) => (
+            <tr key={pf}><td>{PLATFORM_LABEL[pf]}</td><td className="num muted">{v.n} order{v.n === 1 ? '' : 's'}</td><td className="num">{fmtMoney(v.spend, cur)}</td>
+            <td style={{ width: '30%' }}><div className="band" style={{ margin: 0 }}><div className="fill" style={{ left: 0, width: `${(v.spend / (byPlatform[0]?.[1].spend || 1)) * 100}%` }} /></div></td></tr>
+          ))}{!byPlatform.length && <tr><td className="muted">No orders in this period.</td></tr>}</tbody></table>
+          <div className="muted" style={{ fontSize: 11, marginTop: 8 }}>AliExpress syncs itself; other stores come from the toolbar popup or “Add a parcel”.</div>
         </div>
         <div className="card">
           <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>SPEND BY INFERRED CATEGORY</div>

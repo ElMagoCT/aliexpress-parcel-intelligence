@@ -38,7 +38,7 @@ describe('milestone rules', () => {
 });
 
 function mkParcel(id: string, serviceKey: string, shippedAt: number, deliveredAt: number | null): Parcel {
-  return { parcelId: id, trackingNo: id, orderIds: [], itemIds: [], logisticsService: serviceKey, serviceKey, shipFromRegion: 'CN', destCountry: 'US', shippedAt, deliveredAt, lastEventAt: null, lastMilestone: null, lastLocationText: null, lastLat: null, lastLng: null, state: deliveredAt ? 'DELIVERED' : 'IN_TRANSIT', nextPollAt: 0, pollFailures: 0, consolidationGroup: null, updatedAt: 0 };
+  return { parcelId: id, trackingNo: id, platform: 'aliexpress' as const, orderIds: [], itemIds: [], logisticsService: serviceKey, serviceKey, shipFromRegion: 'CN', destCountry: 'US', shippedAt, deliveredAt, lastEventAt: null, lastMilestone: null, lastLocationText: null, lastLat: null, lastLng: null, state: deliveredAt ? 'DELIVERED' : 'IN_TRANSIT', nextPollAt: 0, pollFailures: 0, consolidationGroup: null, updatedAt: 0 };
 }
 function ev(parcelId: string, t: number, milestone: TrackEvent['milestone'], loc = 'x'): TrackEvent {
   return { eventId: `${parcelId}:${t}`, parcelId, timestamp: t, rawText: milestone ?? '', locationText: loc, milestone, lat: null, lng: null, geoConfidence: null, source: 'cainiao' };
@@ -102,7 +102,7 @@ describe('consolidation + dispute', () => {
   });
   it('computes dispute windows with estimation flag', () => {
     const now = Date.UTC(2026, 8, 20);
-    const order = { orderId: '1', placedAt: now - 50 * DAY, sellerId: null, sellerName: null, status: 'SHIPPED' as const, rawStatus: null, currency: 'USD', itemsSubtotal: 1, shippingCost: 0, discount: 0, tax: 0, orderTotal: 1, promisedDeliveryAt: null, protectionEndsAt: null, refundAmount: null, paymentMethod: null, checkoutGroup: null, trackingNos: [], updatedAt: now };
+    const order = { orderId: '1', platform: 'aliexpress' as const, placedAt: now - 50 * DAY, sellerId: null, sellerName: null, status: 'SHIPPED' as const, rawStatus: null, currency: 'USD', itemsSubtotal: 1, shippingCost: 0, discount: 0, tax: 0, orderTotal: 1, promisedDeliveryAt: null, protectionEndsAt: null, refundAmount: null, paymentMethod: null, checkoutGroup: null, trackingNos: [], updatedAt: now };
     const dw = disputeWindow(order, mkParcel('P', 'aliexpress_standard_shipping', now - 48 * DAY, null), now)!;
     expect(dw.estimated).toBe(true);
     expect(Math.round(dw.daysLeft)).toBe(12);
@@ -141,7 +141,7 @@ describe('checkout grouping', () => {
 });
 
 function mkOrderRow(orderId: string) {
-  return { orderId, placedAt: Date.UTC(2026, 8, 13), sellerId: null, sellerName: null, status: 'COMPLETED' as const, rawStatus: null, currency: 'USD', itemsSubtotal: 1, shippingCost: null, discount: null, tax: null, orderTotal: 1, promisedDeliveryAt: null, protectionEndsAt: null, refundAmount: null, paymentMethod: null, checkoutGroup: null, trackingNos: [], updatedAt: 0 };
+  return { orderId, platform: 'aliexpress' as const, placedAt: Date.UTC(2026, 8, 13), sellerId: null, sellerName: null, status: 'COMPLETED' as const, rawStatus: null, currency: 'USD', itemsSubtotal: 1, shippingCost: null, discount: null, tax: null, orderTotal: 1, promisedDeliveryAt: null, protectionEndsAt: null, refundAmount: null, paymentMethod: null, checkoutGroup: null, trackingNos: [], updatedAt: 0 };
 }
 
 describe('currency conversion', () => {
@@ -174,5 +174,50 @@ describe('incremental catch-up', () => {
   it('stops paging once pages stop bringing new orders', async () => {
     const { MIN_REFRESH_GAP_MS } = await import('@/background/autoRefresh');
     expect(MIN_REFRESH_GAP_MS).toBeGreaterThanOrEqual(60_000); // never hammer on repeated worker restarts
+  });
+});
+
+describe('manual parcel state', () => {
+  it('overrides the carrier, stops polling, and stays out of the estimator', async () => {
+    const { db } = await import('@/db/schema');
+    const { setParcelState, addManualParcel } = await import('@/background/manual');
+    const { isAbandoned, STALE_AFTER_DAYS } = await import('@/background/recompute');
+    const { buildHistoryModel } = await import('@/engine/estimator');
+    const { pollDueParcels } = await import('@/background/tracker');
+    for (const t of db.tables) await t.clear();
+
+    // A parcel from another store, added by hand.
+    const res = await addManualParcel({ trackingNo: '1Z999AA10123456784', title: 'Charger', platform: 'amazon', price: 24.99 });
+    expect(res.carrier).toBe('ups');
+    expect(res.parcelId).toBe('1Z999AA10123456784');
+    const created = (await db.parcels.get(res.parcelId!))!;
+    expect(created.platform).toBe('amazon');
+    // UPS can't be polled, so it must never be queued for one.
+    expect(created.nextPollAt).toBe(Number.MAX_SAFE_INTEGER);
+    expect((await db.orders.get(res.orderId))!.orderTotal).toBe(24.99);
+
+    await setParcelState(res.parcelId!, 'delivered');
+    const marked = (await db.parcels.get(res.parcelId!))!;
+    expect(marked.manualState).toBe('delivered');
+    expect(marked.state).toBe('DELIVERED');
+    expect(marked.nextPollAt).toBe(Number.MAX_SAFE_INTEGER);
+    expect((await pollDueParcels()).polled).toBe(0); // never polled again
+
+    // The click time is not a real delivery time, so it must not train the estimator.
+    const model = buildHistoryModel([marked], new Map([[marked.parcelId, []]]));
+    expect(model.deliveredParcels).toBe(0);
+
+    await setParcelState(res.parcelId!, null);
+    expect((await db.parcels.get(res.parcelId!))!.manualState).toBeNull();
+  });
+
+  it('spots parcels the carrier abandoned, but never ones the user already closed', async () => {
+    const { isAbandoned, STALE_AFTER_DAYS } = await import('@/background/recompute');
+    const base = mkParcel('X', 'svc', Date.now() - 200 * DAY, null);
+    const old = { ...base, lastEventAt: Date.now() - (STALE_AFTER_DAYS + 10) * DAY, state: 'IN_TRANSIT' as const };
+    expect(isAbandoned(old)).toBe(true);
+    expect(isAbandoned({ ...old, lastEventAt: Date.now() - 3 * DAY })).toBe(false);
+    expect(isAbandoned({ ...old, manualState: 'archived' })).toBe(false);
+    expect(isAbandoned({ ...old, state: 'DELIVERED' })).toBe(false);
   });
 });

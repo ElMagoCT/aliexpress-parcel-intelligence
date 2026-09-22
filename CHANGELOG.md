@@ -8,6 +8,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ---
 
+## [1.4.0] — 2026-09-22
+
+Any store, any carrier, and a way to close out parcels nobody is ever going to scan again.
+
+### Added
+
+- **Mark a parcel delivered, lost or archived.** Cheap untracked shipping routinely stops scanning
+  after dispatch, leaving parcels stuck on "the seller has shipped your package" forever. A manual
+  state overrides whatever the carrier says, stops the polling, clears the parcel's alerts and can
+  be undone. A hand-set delivery is deliberately kept out of the delivery estimates — it records
+  when you clicked, not when the parcel arrived.
+- **Bulk cleanup for abandoned parcels.** The parcel list offers to close everything with no scan
+  in over 45 days, either as arrived or simply archived.
+- **Any store, any carrier.** Orders and parcels now carry a store, and tracking numbers are
+  identified across UPS, USPS, FedEx, DHL, Amazon Logistics, Royal Mail, Canada Post, Australia
+  Post, 4PX, YunExpress, SF Express, Evri and any UPU/S10 number, which also yields the origin
+  country. Each gets a working link to its own tracking page, with 17track as the fallback.
+  Only AliExpress and Cainiao scans can be fetched automatically, and the UI says so rather than
+  implying the rest will update.
+- **A capture popup on the toolbar button.** On any shopping page it reads the item's image, title
+  and price, plus any tracking number on the page, and saves it in a click. It uses the structured
+  data sites already publish for search engines and social previews — JSON-LD, OpenGraph,
+  microdata — falling back to visible text, rather than guessing at each retailer's private API.
+- **Add a parcel by hand** from the parcel list, with live carrier identification as you type.
+- **A time frame control and a per-store split in Finance**: all time, last 30/90 days, last 12
+  months, this year, or any single year, combined with a store filter, plus a "spend by store"
+  breakdown. Every figure, chart and table respects both.
+
+### Fixed
+
+- **Parcels with no scans were invisible.** The parcel list only showed parcels it could place on
+  the map, so anything freshly added, or shipped but never scanned, silently never appeared.
+  The list now shows every parcel and the map pins the ones it can place.
+
+---
+
 ## [1.3.0] — 2026-09-22
 
 The accent colour now re-tones the entire interface instead of tinting a few buttons.
@@ -207,6 +243,7 @@ Initial build: the whole extension in one pass, ten phases, shipped working befo
 - Not yet verified against a live account; endpoint names and DOM selectors were written from
   memory.
 
+[1.4.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.4.0
 [1.3.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.2.0
 [1.1.1]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.1.1

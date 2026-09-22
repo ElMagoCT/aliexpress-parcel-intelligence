@@ -6,13 +6,14 @@ export default defineManifest({
   name: 'AliExpress Parcel Intelligence',
   description:
     'Local-only map dashboard, delivery estimates and spend analytics for your own AliExpress orders. No backend, no telemetry.',
-  version: '1.3.0',
+  version: '1.4.0',
   minimum_chrome_version: '116',
   icons: { 16: 'public/icon16.png', 32: 'public/icon32.png', 48: 'public/icon48.png', 128: 'public/icon128.png' },
-  action: { default_title: 'Parcel Intelligence dashboard', default_icon: { 16: 'public/icon16.png', 32: 'public/icon32.png', 48: 'public/icon48.png' } },
+  action: { default_title: 'Parcel Intelligence', default_popup: 'src/popup/index.html', default_icon: { 16: 'public/icon16.png', 32: 'public/icon32.png', 48: 'public/icon48.png' } },
   // Prebuilt single file (vite.sw.config.ts) rather than a chain of hash-named chunks — see that file.
   background: { service_worker: 'public/service-worker.js' },
-  permissions: ['storage', 'unlimitedStorage', 'alarms', 'notifications', 'scripting', 'cookies'],
+  // activeTab lets the popup read the page you are looking at, only when you click the icon.
+  permissions: ['storage', 'unlimitedStorage', 'alarms', 'notifications', 'scripting', 'cookies', 'activeTab'],
   host_permissions: [
     '*://*.aliexpress.com/*',
     '*://*.aliexpress.us/*',

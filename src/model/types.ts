@@ -62,8 +62,21 @@ export type OrderStatus =
 
 export type ParcelState = 'PENDING' | 'IN_TRANSIT' | 'DEST_COUNTRY' | 'OUT_FOR_DELIVERY' | 'STALLED' | 'DELIVERED' | 'EXCEPTION' | 'RETURNED' | 'CLOSED';
 
+/** Where an order came from. AliExpress is the built-in integration; the rest are captured by hand. */
+export type Platform = 'aliexpress' | 'amazon' | 'ebay' | 'temu' | 'shein' | 'etsy' | 'walmart' | 'alibaba' | 'other';
+
+export const PLATFORM_LABEL: Record<Platform, string> = {
+  aliexpress: 'AliExpress', amazon: 'Amazon', ebay: 'eBay', temu: 'Temu',
+  shein: 'SHEIN', etsy: 'Etsy', walmart: 'Walmart', alibaba: 'Alibaba', other: 'Other',
+};
+
 export interface Order {
   orderId: string;
+  platform: Platform;
+  /** Added by hand or by the page-capture popup rather than by the AliExpress sync. */
+  manual?: boolean;
+  /** Where it was captured from, for manual entries. */
+  sourceUrl?: string | null;
   placedAt: number | null; // epoch ms
   sellerId: string | null;
   sellerName: string | null;
@@ -104,9 +117,22 @@ export interface Item {
   trackingNo: string | null;
 }
 
+/** A state the user set by hand; it wins over anything the carrier says. */
+export type ManualState = 'delivered' | 'lost' | 'archived';
+
 export interface Parcel {
   parcelId: string; // == trackingNo normally
   trackingNo: string;
+  platform: Platform;
+  /** Detected (or user-set) carrier key — see src/engine/carriers.ts. */
+  carrier?: string | null;
+  /** Set by the user: overrides the computed state and stops polling. */
+  manualState?: ManualState | null;
+  manualStateAt?: number | null;
+  /** Free-text label for parcels added by hand. */
+  title?: string | null;
+  imageUrl?: string | null;
+  manual?: boolean;
   orderIds: string[];
   itemIds: string[];
   logisticsService: string | null;

@@ -3,9 +3,15 @@ import type { Item, Order, Parcel, Prediction, TrackEvent } from '@/model/types'
 import { MILESTONE_LABEL } from '@/model/types';
 import { disputeWindow } from '@/engine/dispute';
 import { fmtDate, fmtDateTime, DAY } from '@/shared/util';
+import { CARRIERS, detectCarrier } from '@/engine/carriers';
+import { PLATFORM_LABEL } from '@/model/types';
 import { bg } from '../lib/bg';
 
 export function stateTag(p: Parcel) {
+  if (p.manualState) {
+    const label = p.manualState === 'delivered' ? 'Delivered (by you)' : p.manualState === 'lost' ? 'Lost' : 'Closed';
+    return <span className={`tag ${p.manualState === 'delivered' ? 'ok' : p.manualState === 'lost' ? 'bad' : ''}`}>{label}</span>;
+  }
   const map: Record<Parcel['state'], [string, string]> = {
     PENDING: ['Awaiting first scan', 'info'], IN_TRANSIT: ['In transit', 'info'], DEST_COUNTRY: ['In your country', 'ok'], OUT_FOR_DELIVERY: ['Out for delivery', 'ok'],
     STALLED: ['Stalled', 'warn'], DELIVERED: ['Delivered', 'ok'], EXCEPTION: ['Exception', 'bad'], RETURNED: ['Returned', 'bad'], CLOSED: ['Closed', ''],
@@ -41,6 +47,8 @@ export function ParcelPanel({ parcel, items, orders, events, pred, groupSize, on
   const dw = disputeWindow(order, parcel);
   const doExplain = async () => { setBusy(true); const r = await bg({ type: 'EXPLAIN_PARCEL', parcelId: parcel.parcelId }); setExplain(r.ok ? String((r as { text?: string }).text ?? '') : `Error: ${(r as { error: string }).error}`); setBusy(false); };
   const poll = async () => { setBusy(true); await bg({ type: 'POLL_PARCEL', parcelId: parcel.parcelId }); setBusy(false); };
+  const mark = async (state: 'delivered' | 'lost' | 'archived' | null) => { setBusy(true); await bg({ type: 'SET_PARCEL_STATE', parcelId: parcel.parcelId, state }); setBusy(false); };
+  const carrier = CARRIERS[parcel.carrier ?? ''] ?? detectCarrier(parcel.trackingNo, parcel.logisticsService).carrier;
   return (
     <div className="panel">
       <button className="close" onClick={onClose}>×</button>
@@ -48,6 +56,7 @@ export function ParcelPanel({ parcel, items, orders, events, pred, groupSize, on
       <div className="row" style={{ gap: 8 }}>
         {stateTag(parcel)}
         <span className="tag mono">{parcel.trackingNo}</span>
+        {parcel.platform && parcel.platform !== 'aliexpress' && <span className="tag info">{PLATFORM_LABEL[parcel.platform]}</span>}
         {groupSize > 1 && <span className="tag warn">{groupSize} parcels moving as one</span>}
       </div>
       <div className="muted" style={{ marginTop: 6, fontSize: 12 }}>{parcel.shipFromRegion ?? '?'} → {parcel.destCountry ?? 'you'} · shipped {fmtDate(parcel.shippedAt)}{parcel.deliveredAt ? ` · delivered ${fmtDate(parcel.deliveredAt)}` : ''}</div>
@@ -71,8 +80,21 @@ export function ParcelPanel({ parcel, items, orders, events, pred, groupSize, on
       <div className="row" style={{ marginTop: 8 }}>
         <button className="btn sm" onClick={poll} disabled={busy}>Refresh tracking</button>
         <button className="btn sm" onClick={doExplain} disabled={busy}>Explain this parcel</button>
-        <a className="btn sm" href={`https://global.cainiao.com/newDetail.htm?mailNoList=${parcel.trackingNo}&lang=en-US`} target="_blank" rel="noreferrer">Cainiao ↗</a>
+        <a className="btn sm" href={carrier.url(parcel.trackingNo)} target="_blank" rel="noreferrer">{carrier.name} ↗</a>
       </div>
+      <div className="row" style={{ marginTop: 8 }}>
+        {parcel.manualState ? (
+          <button className="btn sm" onClick={() => void mark(null)} disabled={busy}>Undo “{parcel.manualState}” &amp; resume tracking</button>
+        ) : (
+          <>
+            <button className="btn sm" onClick={() => void mark('delivered')} disabled={busy} title="For parcels that arrived but were never scanned as delivered">Mark delivered</button>
+            <button className="btn sm" onClick={() => void mark('lost')} disabled={busy}>Mark lost</button>
+            <button className="btn sm" onClick={() => void mark('archived')} disabled={busy} title="Stop tracking without claiming it arrived">Archive</button>
+          </>
+        )}
+      </div>
+      {parcel.manualState && <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>You marked this {parcel.manualState} on {fmtDate(parcel.manualStateAt)}. It no longer polls, and a hand-set delivery date is kept out of the delivery estimates.</div>}
+      {!carrier.pollable && !parcel.orderIds.length && <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>{carrier.name} scans can't be read automatically — use the link above.</div>}
       {explain && <div className="explain">{explain}</div>}
       <ul className="tl">
         {[...events].reverse().map((e) => (

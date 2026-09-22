@@ -564,6 +564,7 @@ export function parseOrderObject(raw: Record<string, unknown>, now = Date.now())
   const itemsSubtotal = subtotal.amount ?? (items.length && items.every((i) => i.unitPrice != null) ? items.reduce((s, i) => s + (i.unitPrice ?? 0) * i.qty, 0) : null);
   const order: Order = {
     orderId,
+    platform: 'aliexpress',
     placedAt: parseDate(findKey(raw, ORDER_DATE_KEYS)),
     sellerId: seller.id,
     sellerName: seller.name,
@@ -849,6 +850,7 @@ export function parseOrderDetailUltron(payload: unknown, now = Date.now()): Orde
   const p = price ? parsePriceBlock(price) : { itemsSubtotal: null, shippingCost: null, discount: null, tax: null, orderTotal: null, currency: null };
   return {
     orderId,
+    platform: 'aliexpress',
     placedAt: parseDate(info?.orderCreatTime ?? info?.payTime),
     sellerId: null,
     sellerName: null,

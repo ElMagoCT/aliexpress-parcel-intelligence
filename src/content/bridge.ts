@@ -35,7 +35,7 @@ window.addEventListener('message', (ev: MessageEvent<CaptureEnvelope & { type: s
     return;
   }
   // ── 4. Diagnostics / command channel (same-window only; only when the user enabled it in Settings) ──
-  if (ev.data.type === 'AEPI_CMD' && ev.data.cmd && /^(DIAG|RELOAD_EXT|POLL_PARCEL|SYNC_NOW|SYNC_TRACKING|SYNC_REFUNDS|SYNC_DETAILS|AUTO_REFRESH|GET_JOBS|BACKFILL_START|BACKFILL_STOP|BACKFILL_GET_STATE|RECOMPUTE|GEOCODE_PENDING|PING|OPEN_DASHBOARD)$/.test(ev.data.cmd.type)) {
+  if (ev.data.type === 'AEPI_CMD' && ev.data.cmd && /^(DIAG|RELOAD_EXT|POLL_PARCEL|SET_PARCEL_STATE|ADD_PARCEL|LIST_ABANDONED|CLOSE_ABANDONED|SYNC_NOW|SYNC_TRACKING|SYNC_REFUNDS|SYNC_DETAILS|AUTO_REFRESH|GET_JOBS|BACKFILL_START|BACKFILL_STOP|BACKFILL_GET_STATE|RECOMPUTE|GEOCODE_PENDING|PING|OPEN_DASHBOARD)$/.test(ev.data.cmd.type)) {
     const id = (ev.data as { id?: string }).id;
     void send({ type: 'DEBUG_CHANNEL_ENABLED' }).then((g) => {
       if (!g.ok || !(g as { enabled?: boolean }).enabled) { window.postMessage({ __aepi: 1, type: 'AEPI_CMD_RESULT', id, res: { ok: false, error: 'debug channel disabled (Settings → Diagnostics)' } }, '*'); return; }

@@ -69,15 +69,33 @@ export async function ensureDemoIfStandalone() {
     }
     const shipping = i % 4 === 0 ? 0 : 2.99;
     const placedAt = now - placedDaysAgo * DAY;
-    orders.push({ orderId, placedAt, sellerId: String(100 + (i % sellers.length)), sellerName: seller, status: delivered ? 'COMPLETED' : 'SHIPPED', rawStatus: delivered ? 'FINISH' : 'WAIT_BUYER_ACCEPT_GOODS', currency, itemsSubtotal: +subtotal.toFixed(2), shippingCost: shipping, discount: i % 5 === 0 ? 1.5 : 0, tax: +(subtotal * 0.086).toFixed(2), orderTotal: +(subtotal + shipping + subtotal * 0.086 - (i % 5 === 0 ? 1.5 : 0)).toFixed(2), promisedDeliveryAt: placedAt + (eu ? 16 : 14) * DAY, protectionEndsAt: i % 6 === 1 ? now + 5 * DAY : null, refundAmount: null, paymentMethod: i % 3 ? 'Google Pay' : 'Visa ****4242', checkoutGroup: null, pricingDetailed: true, trackingNos: [tn], updatedAt: now });
+    orders.push({ orderId, platform: 'aliexpress', placedAt, sellerId: String(100 + (i % sellers.length)), sellerName: seller, status: delivered ? 'COMPLETED' : 'SHIPPED', rawStatus: delivered ? 'FINISH' : 'WAIT_BUYER_ACCEPT_GOODS', currency, itemsSubtotal: +subtotal.toFixed(2), shippingCost: shipping, discount: i % 5 === 0 ? 1.5 : 0, tax: +(subtotal * 0.086).toFixed(2), orderTotal: +(subtotal + shipping + subtotal * 0.086 - (i % 5 === 0 ? 1.5 : 0)).toFixed(2), promisedDeliveryAt: placedAt + (eu ? 16 : 14) * DAY, protectionEndsAt: i % 6 === 1 ? now + 5 * DAY : null, refundAmount: null, paymentMethod: i % 3 ? 'Google Pay' : 'Visa ****4242', checkoutGroup: null, pricingDetailed: true, trackingNos: [tn], updatedAt: now });
     const service = services[i % services.length];
-    parcels.push({ parcelId: tn, trackingNo: tn, orderIds: [orderId], itemIds: items.filter((it) => it.orderId === orderId).map((it) => it.itemId), logisticsService: service, serviceKey: service.toLowerCase().replace(/[^a-z0-9]+/g, '_'), shipFromRegion: 'China', destCountry: eu ? 'Germany' : 'United States', shippedAt: placedAt + 2 * DAY, deliveredAt: null, lastEventAt: null, lastMilestone: null, lastLocationText: null, lastLat: null, lastLng: null, state: 'PENDING', nextPollAt: now + DAY, pollFailures: 0, consolidationGroup: null, updatedAt: now });
+    parcels.push({ parcelId: tn, trackingNo: tn, platform: 'aliexpress', carrier: 'cainiao', manualState: null, manualStateAt: null, orderIds: [orderId], itemIds: items.filter((it) => it.orderId === orderId).map((it) => it.itemId), logisticsService: service, serviceKey: service.toLowerCase().replace(/[^a-z0-9]+/g, '_'), shipFromRegion: 'China', destCountry: eu ? 'Germany' : 'United States', shippedAt: placedAt + 2 * DAY, deliveredAt: null, lastEventAt: null, lastMilestone: null, lastLocationText: null, lastLat: null, lastLng: null, state: 'PENDING', nextPollAt: now + DAY, pollFailures: 0, consolidationGroup: null, updatedAt: now });
     for (const [daysAgo, text, loc] of shownLegs) {
       const ts = now - daysAgo * DAY - (ei++ % 5) * HOUR;
       const g = gazetteerLookup(loc) ?? gazetteerLookup(extractLocationFromText(text) ?? '');
       events.push({ eventId: `${tn}:${ts}:${fnv1a(text)}`, parcelId: tn, timestamp: ts, rawText: text, locationText: loc, milestone: classifyText(text), lat: g?.lat ?? null, lng: g?.lng ?? null, geoConfidence: g?.confidence ?? null, source: 'cainiao' });
     }
   }
+  // Purchases from other stores, captured by hand — these exercise the multi-store views.
+  const otherStores: [string, string, string, number, string][] = [
+    ['amazon', 'Amazon', 'TBA305421997654', 24.99, 'Anker USB-C Charger 65W'],
+    ['ebay', 'eBay', '9405511899223197428490', 41.5, 'Vintage Nixie Tube IN-14 (pair)'],
+    ['temu', 'Temu', '1Z999AA10123456784', 8.75, 'Silicone Cable Ties 50pcs'],
+  ];
+  otherStores.forEach(([pf, seller, tn, amount, name], k) => {
+    const oid = `m_${pf}_demo${k}`;
+    const placed = now - (9 + k * 12) * DAY;
+    orders.push({ orderId: oid, platform: pf as Order['platform'], manual: true, sourceUrl: null, placedAt: placed, sellerId: null, sellerName: seller, status: 'SHIPPED', rawStatus: null, currency: 'USD', itemsSubtotal: amount, shippingCost: 0, discount: null, tax: null, orderTotal: amount, promisedDeliveryAt: null, protectionEndsAt: null, refundAmount: null, paymentMethod: null, checkoutGroup: null, trackingNos: [tn], updatedAt: now });
+    items.push({ itemId: `${oid}:manual`, orderId: oid, productId: null, title: name, sku: null, qty: 1, unitPrice: amount, currency: 'USD', imageUrl: null, trackingNo: tn });
+    parcels.push({ parcelId: tn, trackingNo: tn, platform: pf as Order['platform'], carrier: null, manual: true, title: name, imageUrl: null, manualState: null, manualStateAt: null, orderIds: [oid], itemIds: [`${oid}:manual`], logisticsService: null, serviceKey: 'manual', shipFromRegion: null, destCountry: 'United States', shippedAt: placed, deliveredAt: null, lastEventAt: null, lastMilestone: null, lastLocationText: null, lastLat: null, lastLng: null, state: 'PENDING', nextPollAt: Number.MAX_SAFE_INTEGER, pollFailures: 0, consolidationGroup: null, updatedAt: now });
+  });
+  // One parcel the carrier gave up on months ago, to exercise the stale-cleanup banner.
+  const dead = parcels[6];
+  for (const e of events.filter((e) => e.parcelId === dead.parcelId)) e.timestamp = now - (70 + (e.timestamp % 5)) * DAY;
+  dead.shippedAt = now - 75 * DAY;
+
   // A refunded order and a cancelled one for the finance view
   orders[7] = { ...orders[7], status: 'REFUNDED', rawStatus: 'Refund processed', refundAmount: orders[7].orderTotal };
   orders[9] = { ...orders[9], status: 'CLOSED', rawStatus: 'Canceled' };

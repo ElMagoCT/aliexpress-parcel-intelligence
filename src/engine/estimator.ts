@@ -118,7 +118,10 @@ export function buildHistoryModel(parcels: Parcel[], eventsByParcel: Map<string,
 
   for (const p of parcels) {
     const evs = (eventsByParcel.get(p.parcelId) ?? []).filter((e) => e.milestone).sort((a, b) => a.timestamp - b.timestamp);
-    const delivered = p.deliveredAt ?? evs.find((e) => e.milestone === 'DELIVERED')?.timestamp ?? null;
+    // A hand-marked delivery records when the user clicked, not when the parcel arrived, so it is
+    // never training data — but its dwell times up to that point still are.
+    const manual = !!p.manualState;
+    const delivered = manual ? null : p.deliveredAt ?? evs.find((e) => e.milestone === 'DELIVERED')?.timestamp ?? null;
     // Dwell samples are available for every parcel, delivered or not (completed dwells only).
     const firstAt = new Map<Milestone, number>();
     for (const e of evs) if (e.milestone && !firstAt.has(e.milestone)) firstAt.set(e.milestone, e.timestamp);

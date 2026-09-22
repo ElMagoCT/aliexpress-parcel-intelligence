@@ -7,6 +7,7 @@ import type { CaptureLogEntry, Item, Order, Parcel, Refund, TrackEvent } from '@
 import type { ParsedBundle, RawTrackingEvent } from '@/adapters/aliexpress';
 import { bodyHasPageIndex, detectPageParam, endpointKey, parsePayload, serviceKeyFor } from '@/adapters/aliexpress';
 import { gazetteerLookup } from './geocode';
+import { detectCarrier } from '@/engine/carriers';
 import { classifyText } from '@/engine/milestones';
 import { fnv1a, uniq } from '@/shared/util';
 import { scheduleRecompute } from './recompute';
@@ -118,6 +119,10 @@ export async function ingestBundle(bundle: ParsedBundle, source: TrackEvent['sou
       const p: Parcel = {
         parcelId: id,
         trackingNo: id,
+        platform: prev?.platform ?? 'aliexpress',
+        carrier: prev?.carrier ?? detectCarrier(id, service).carrier.key,
+        manualState: prev?.manualState ?? null,
+        manualStateAt: prev?.manualStateAt ?? null,
         orderIds,
         itemIds,
         logisticsService: service,
@@ -170,7 +175,7 @@ export async function upsertEvents(raw: RawTrackingEvent[], source: TrackEvent['
     // Ensure a parcel row exists even when only tracking data arrived
     const p = await db.parcels.get(parcelId);
     if (!p) {
-      await db.parcels.put({ parcelId, trackingNo: parcelId, orderIds: [], itemIds: [], logisticsService: null, serviceKey: 'unknown', shipFromRegion: null, destCountry: null, shippedAt: null, deliveredAt: null, lastEventAt: null, lastMilestone: null, lastLocationText: null, lastLat: null, lastLng: null, state: 'PENDING', nextPollAt: Date.now(), pollFailures: 0, consolidationGroup: null, updatedAt: Date.now() });
+      await db.parcels.put({ parcelId, trackingNo: parcelId, platform: 'aliexpress', carrier: detectCarrier(parcelId).carrier.key, orderIds: [], itemIds: [], logisticsService: null, serviceKey: 'unknown', shipFromRegion: null, destCountry: null, shippedAt: null, deliveredAt: null, lastEventAt: null, lastMilestone: null, lastLocationText: null, lastLat: null, lastLng: null, state: 'PENDING', nextPollAt: Date.now(), pollFailures: 0, consolidationGroup: null, updatedAt: Date.now() });
     }
     n++;
   }

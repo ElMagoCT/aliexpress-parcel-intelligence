@@ -49,6 +49,16 @@ export async function groupCheckouts(all: Order[]): Promise<number> {
   return groups;
 }
 
+/** How long past its promised date a parcel with no recent scan counts as abandoned. */
+export const STALE_AFTER_DAYS = 45;
+
+/** Parcels the carrier clearly gave up on: shipped long ago, no scan in ages, still "active". */
+export function isAbandoned(p: Parcel, now = Date.now()): boolean {
+  if (p.manualState || p.state === 'DELIVERED' || p.state === 'RETURNED' || p.state === 'CLOSED') return false;
+  const last = p.lastEventAt ?? p.shippedAt;
+  return !!last && (now - last) / DAY > STALE_AFTER_DAYS;
+}
+
 export function stateFor(milestone: Milestone | null, stalled: boolean, delivered: boolean): ParcelState {
   if (delivered || milestone === 'DELIVERED') return 'DELIVERED';
   if (milestone === 'RETURNED') return 'RETURNED';
@@ -156,7 +166,11 @@ export async function recomputeAll(): Promise<void> {
     } else {
       await db.predictions.delete(p.parcelId);
     }
-    const state = stateFor(milestone, stalled, delivered);
+    let state = stateFor(milestone, stalled, delivered);
+    // Anything the user set by hand wins: the carrier will never confirm these.
+    if (p.manualState === 'delivered') state = 'DELIVERED';
+    else if (p.manualState === 'lost') state = 'EXCEPTION';
+    else if (p.manualState === 'archived') state = 'CLOSED';
     const patch: Partial<Parcel> = {
       lastEventAt: last?.timestamp ?? p.lastEventAt,
       lastMilestone: milestone,
@@ -169,7 +183,7 @@ export async function recomputeAll(): Promise<void> {
       consolidationGroup: groups.get(p.parcelId) ?? null,
       updatedAt: now,
     };
-    if (state === 'DELIVERED' || state === 'RETURNED') {
+    if (state === 'DELIVERED' || state === 'RETURNED' || state === 'CLOSED' || p.manualState) {
       patch.nextPollAt = Number.MAX_SAFE_INTEGER;
       for (const a of prevAlerts) if (a.parcelId === p.parcelId && !a.dismissed && (a.kind === 'stalled' || a.kind === 'late' || a.kind === 'dispute_deadline' || a.kind === 'exception')) await db.alerts.update(a.alertId, { dismissed: true });
     }

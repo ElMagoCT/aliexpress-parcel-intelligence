@@ -38,6 +38,14 @@ export class ParcelDB extends Dexie {
     this.version(2).stores({
       refunds: 'refundId, orderId, refundStatus, finishedAt',
     });
+    // v3 adds multi-platform support and the user's manual parcel state.
+    this.version(3).stores({
+      orders: 'orderId, placedAt, sellerId, status, platform, *trackingNos',
+      parcels: 'parcelId, trackingNo, state, nextPollAt, serviceKey, platform, manualState, *orderIds, consolidationGroup',
+    }).upgrade(async (tx) => {
+      await tx.table('orders').toCollection().modify((o: Record<string, unknown>) => { o.platform ??= 'aliexpress'; });
+      await tx.table('parcels').toCollection().modify((p: Record<string, unknown>) => { p.platform ??= 'aliexpress'; p.manualState ??= null; });
+    });
   }
 
   async getSettings(): Promise<Settings> {

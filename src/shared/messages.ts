@@ -1,4 +1,6 @@
-import type { BackfillState, Milestone, Prediction } from '@/model/types';
+import type { BackfillState, ManualState, Milestone, Platform, Prediction } from '@/model/types';
+import type { CapturedItem, PageHarvest } from '@/adapters/pageCapture';
+import type { ManualParcelInput } from '@/background/manual';
 
 /** postMessage envelope from the MAIN-world interceptor to the ISOLATED bridge. */
 export interface CaptureEnvelope {
@@ -19,6 +21,11 @@ export type BgMessage =
   | { type: 'SYNC_REFUNDS' }
   | { type: 'SYNC_DETAILS' }
   | { type: 'AUTO_REFRESH'; force?: boolean; trigger?: string }
+  | { type: 'SET_PARCEL_STATE'; parcelId: string; state: ManualState | null }
+  | { type: 'ADD_PARCEL'; input: ManualParcelInput }
+  | { type: 'LIST_ABANDONED' }
+  | { type: 'CLOSE_ABANDONED'; state?: ManualState }
+  | { type: 'PARSE_PAGE'; harvest: PageHarvest }
   | { type: 'GET_JOBS' }
   | { type: 'RELOAD_EXT' }
   | { type: 'SYNC_TRACKING' }
@@ -40,6 +47,8 @@ export type BgMessage =
   | { type: 'REFRESH_RATES' }
   | { type: 'GEOCODE_PENDING' }
   | { type: 'PING' };
+
+export type { CapturedItem, PageHarvest, ManualParcelInput, Platform };
 
 export interface ListingEstimate {
   p50Days: number;

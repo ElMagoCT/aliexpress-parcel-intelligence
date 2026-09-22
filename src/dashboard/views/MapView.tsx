@@ -3,6 +3,7 @@ import L from 'leaflet';
 import type { Item, Parcel, TrackEvent } from '@/model/types';
 import { useEventsByParcel, useItemsByParcel, useOrdersById, useParcels, usePredictionsById, useSettings, isActive } from '../lib/useData';
 import { ParcelPanel, stateTag } from '../components/ParcelPanel';
+import { ParcelTools } from '../components/ParcelTools';
 import { routeFor, type Route } from '@/engine/route';
 import { fmtDate, DAY } from '@/shared/util';
 import world from '@/data/world-110m.json';
@@ -100,10 +101,12 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
 
   const rows = useMemo<Row[]>(() => parcels
     .filter((p) => showDelivered || isActive(p) || p.parcelId === selectedId)
-    .map((p) => { const items = itemsBy.get(p.parcelId) ?? []; return { p, route: routeFor(p, eventsBy.get(p.parcelId) ?? [], home, t), items, itemCount: items.reduce((s, i) => s + i.qty, 0) || p.itemIds.length || 1, cls: clsFor(p) }; })
-    .filter((r) => r.route.current), [parcels, showDelivered, selectedId, itemsBy, eventsBy, home, t]);
+    .map((p) => { const items = itemsBy.get(p.parcelId) ?? []; return { p, route: routeFor(p, eventsBy.get(p.parcelId) ?? [], home, t), items, itemCount: items.reduce((s, i) => s + i.qty, 0) || p.itemIds.length || 1, cls: clsFor(p) }; }),
+    [parcels, showDelivered, selectedId, itemsBy, eventsBy, home, t]);
+  /** Only parcels with at least one placeable scan can be drawn; the rest still belong in the list. */
+  const placed = useMemo(() => rows.filter((r) => r.route.current), [rows]);
 
-  const groups = useMemo(() => { const m = new Map<string, Row[]>(); for (const r of rows) if (r.p.consolidationGroup) (m.get(r.p.consolidationGroup) ?? m.set(r.p.consolidationGroup, []).get(r.p.consolidationGroup)!).push(r); return m; }, [rows]);
+  const groups = useMemo(() => { const m = new Map<string, Row[]>(); for (const r of placed) if (r.p.consolidationGroup) (m.get(r.p.consolidationGroup) ?? m.set(r.p.consolidationGroup, []).get(r.p.consolidationGroup)!).push(r); return m; }, [placed]);
 
   // Draw
   useEffect(() => {
@@ -128,8 +131,8 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
         L.polyline([ll(cur), ll(home)], { color: strong ? COLORS.proj : COLORS.faintAlt, weight: strong ? 2.5 : 1, dashArray: '2 8' }).addTo(layer);
       }
     };
-    const sel = rows.find((r) => r.p.parcelId === selectedId);
-    if (rows.length <= 25) for (const r of rows) if (r !== sel) drawRoute(r, false);
+    const sel = placed.find((r) => r.p.parcelId === selectedId);
+    if (placed.length <= 25) for (const r of placed) if (r !== sel) drawRoute(r, false);
     if (sel) drawRoute(sel, true);
 
     const marker = (r: Row, strong: boolean) => {
@@ -154,7 +157,7 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
       mk.on('click', () => onSelect(m0.p.parcelId));
       mk.addTo(layer);
     }
-    const rest = rows.filter((r) => !grouped.has(r.p.parcelId));
+    const rest = placed.filter((r) => !grouped.has(r.p.parcelId));
     for (const c of cluster(map, rest, nl)) {
       const hasSel = c.members.some((m) => m.p.parcelId === selectedId);
       if (c.members.length > 1 && map.getZoom() < 9 && !hasSel) {
@@ -166,7 +169,7 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
       }
       for (const r of c.members) marker(r, r.p.parcelId === selectedId);
     }
-  }, [rows, groups, selectedId, home, zoomTick, predsBy, onSelect, settings.accent, settings.theme]);
+  }, [placed, groups, selectedId, home, zoomTick, predsBy, onSelect, settings.accent, settings.theme]);
 
   // Fit once (again when home appears); refit to the route when a parcel is picked
   // Initial framing: data arrives table by table (parcels, then events, then settings), so keep
@@ -175,20 +178,20 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
   const fitted = useRef(false);
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !rows.length || selectedId) return;
+    if (!map || !placed.length || selectedId) return;
     if (fitted.current && Date.now() - mountedAt.current > 4000) return;
-    const pts: [number, number][] = rows.flatMap((r) => [ll(r.route.current!), ...(r.route.points.length ? [ll(r.route.points[0])] : [])]);
+    const pts: [number, number][] = placed.flatMap((r) => [ll(r.route.current!), ...(r.route.points.length ? [ll(r.route.points[0])] : [])]);
     if (home) pts.push(ll(home));
     (window as unknown as { __aepiFitPts?: unknown }).__aepiFitPts = pts;
     const id = setTimeout(() => { map.invalidateSize(); map.fitBounds(L.latLngBounds(pts).pad(0.12), { maxZoom: 5, animate: false }); }, 80);
     fitted.current = true;
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, home]);
+  }, [placed, home]);
   // Pick a parcel → centre on it; zoom follows how far it still has to go (far away = zoomed out).
   useEffect(() => {
     const map = mapRef.current;
-    const sel = rows.find((r) => r.p.parcelId === selectedId);
+    const sel = placed.find((r) => r.p.parcelId === selectedId);
     if (!map || !sel?.route.current) return;
     const cur = sel.route.current;
     const target = sel.p.state === 'DELIVERED' ? null : home ?? sel.route.dest;
@@ -236,6 +239,7 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
           <div><strong>{active.length} active parcel{active.length === 1 ? '' : 's'}</strong><div className="muted" style={{ fontSize: 11 }}>{groups.size ? `${groups.size} consolidated · ` : ''}{active.reduce((s, p) => s + ((itemsBy.get(p.parcelId) ?? []).reduce((x, i) => x + i.qty, 0) || p.itemIds.length), 0)} items on the way</div></div>
           <label className="tag" style={{ cursor: 'pointer' }}><input type="checkbox" checked={showDelivered} onChange={(e) => setShowDelivered(e.target.checked)} style={{ margin: 0 }} /> delivered</label>
         </div>
+        <ParcelTools parcels={parcels} />
         {!listRows.length && <div className="empty" style={{ margin: 12 }}>{parcels.length ? 'Nothing in transit.' : 'No parcels yet — run Backfill or browse your AliExpress orders.'}</div>}
         {listRows.map((r) => {
           const pred = predsBy.get(r.p.parcelId);
@@ -253,7 +257,7 @@ export function MapView({ selectedId, onSelect }: { selectedId: string | null; o
                 <div className="row" style={{ gap: 6 }}>{stateTag(r.p)}{r.p.orderIds.length > 1 && <span className="tag">{r.p.orderIds.length} orders</span>}</div>
                 <div className="muted" style={{ fontSize: 11 }}>{r.p.logisticsService ?? 'unknown carrier'}{order?.sellerName ? ` · ${order.sellerName}` : ''}</div>
                 <div className="peta">{pred ? <><strong>{fmtDate(pred.p50)} – {fmtDate(pred.p80)}</strong>{order?.promisedDeliveryAt && <span className="muted"> · AE {fmtDate(order.promisedDeliveryAt)}</span>}</> : r.p.state === 'DELIVERED' ? <span className="muted">delivered {fmtDate(r.p.deliveredAt ?? r.p.lastEventAt)}</span> : <span className="muted">no estimate yet</span>}</div>
-                <div className="muted" style={{ fontSize: 11 }}>{r.route.current?.label}{r.route.current?.inferred ? ' · position inferred' : ''}</div>
+                <div className="muted" style={{ fontSize: 11 }}>{r.route.current ? `${r.route.current.label}${r.route.current.inferred ? ' · position inferred' : ''}` : 'No scan yet — not on the map'}</div>
               </div>
             </div>
           );

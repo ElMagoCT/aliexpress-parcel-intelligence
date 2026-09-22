@@ -7,7 +7,7 @@ const idleBackfill: BackfillState = { active: false, phase: 'idle', tabId: null,
 
 /** Send a message to the service worker. In standalone preview mode, answer locally. */
 export function bg(msg: BgMessage): Promise<BgResponse> {
-  if (!inExtension) return Promise.resolve(shim(msg));
+  if (!inExtension) return shimAsync(msg);
   return new Promise((resolve) => {
     try {
       chrome.runtime.sendMessage(msg, (res: BgResponse) => {
@@ -16,6 +16,46 @@ export function bg(msg: BgMessage): Promise<BgResponse> {
       });
     } catch (e) { resolve({ ok: false, error: String(e) }); }
   });
+}
+
+/**
+ * Standalone preview has no service worker. Anything that only touches the local database is run
+ * for real so the preview is a genuine testbed; everything else gets a canned answer.
+ */
+async function shimAsync(msg: BgMessage): Promise<BgResponse> {
+  try {
+    switch (msg.type) {
+      case 'SET_PARCEL_STATE': {
+        const { setParcelState } = await import('@/background/manual');
+        await setParcelState(msg.parcelId, msg.state);
+        return { ok: true };
+      }
+      case 'ADD_PARCEL': {
+        const { addManualParcel } = await import('@/background/manual');
+        return { ok: true, ...(await addManualParcel(msg.input)) };
+      }
+      case 'CLOSE_ABANDONED': {
+        const { closeAbandoned } = await import('@/background/manual');
+        return { ok: true, closed: await closeAbandoned(msg.state ?? 'archived') };
+      }
+      case 'LIST_ABANDONED': {
+        const { listAbandoned } = await import('@/background/manual');
+        return { ok: true, parcels: await listAbandoned() };
+      }
+      case 'RECOMPUTE': {
+        const { recomputeAll } = await import('@/background/recompute');
+        await recomputeAll();
+        return { ok: true };
+      }
+      case 'PARSE_PAGE': {
+        const { parseShoppingPage } = await import('@/adapters/pageCapture');
+        return { ok: true, item: parseShoppingPage(msg.harvest) };
+      }
+      default: return shim(msg);
+    }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 function shim(msg: BgMessage): BgResponse {

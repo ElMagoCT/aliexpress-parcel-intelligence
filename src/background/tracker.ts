@@ -5,6 +5,7 @@
 import { db } from '@/db/schema';
 import type { Parcel, ParcelState } from '@/model/types';
 import { CAINIAO_DETAIL_URLS, parseCainiao } from '@/adapters/cainiao';
+import { CARRIERS } from '@/engine/carriers';
 import { ingestBundle, upsertEvents } from './ingest';
 import { parsePayload, withDataField } from '@/adapters/aliexpress';
 import { directFetch } from './sync';
@@ -34,6 +35,11 @@ export interface PollResult { ok: boolean; events: number; paused: boolean; erro
 export async function pollParcel(parcelId: string, opts: { force?: boolean } = {}): Promise<PollResult> {
   const p = await db.parcels.get(parcelId);
   if (!p) return { ok: false, events: 0, paused: false, error: 'no parcel' };
+  if (p.manualState) return { ok: false, events: 0, paused: false, error: `set to ${p.manualState} by hand` };
+  // Only AliExpress/Cainiao numbers can be read directly; others are stored and linked out to.
+  if (p.carrier && p.carrier !== 'cainiao' && !CARRIERS[p.carrier]?.pollable && !p.orderIds.length) {
+    return { ok: false, events: 0, paused: false, error: `${CARRIERS[p.carrier]?.name ?? p.carrier} can't be polled — open its tracking page` };
+  }
   const pausedUntil = await db.getKV<number>(PAUSE_KEY, 0);
   if (!opts.force && pausedUntil > Date.now()) return { ok: false, events: 0, paused: true, error: 'paused' };
   let lastErr: string | null = null;
@@ -101,7 +107,7 @@ export async function pollDueParcels(limit = 40): Promise<{ polled: number; paus
   if (pausedUntil > Date.now()) return { polled: 0, paused: true };
   const now = Date.now();
   const due = (await db.parcels.where('nextPollAt').belowOrEqual(now).toArray())
-    .filter((p) => pollIntervalFor(p.state) !== null)
+    .filter((p) => pollIntervalFor(p.state) !== null && !p.manualState)
     .sort((a, b) => a.nextPollAt - b.nextPollAt)
     .slice(0, limit);
   let polled = 0;
