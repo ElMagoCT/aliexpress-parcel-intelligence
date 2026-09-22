@@ -1,4 +1,4 @@
-# AliExpress Parcel Intelligence
+# Parcel Intelligence
 
 [![version](https://img.shields.io/badge/version-1.1.0-6ea8ff)](CHANGELOG.md)
 [![license](https://img.shields.io/badge/license-MIT-9b7bff)](LICENSE)

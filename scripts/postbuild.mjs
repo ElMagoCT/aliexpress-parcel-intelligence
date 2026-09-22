@@ -7,7 +7,7 @@
  * leaves Chrome unable to start the worker at all — the extension then goes quiet, with no syncing
  * and every dashboard button dead. One stable file removes that whole class of failure.
  */
-import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const dist = 'dist';
@@ -36,6 +36,20 @@ if (loaderRel && loaderRel !== WORKER) {
 // Vite copies public/ to the dist root, and CRXJS also emits a public/ copy for manifest-referenced
 // paths — so the 418 kB worker would ship twice. The manifest points at the root one.
 rmSync(join(dist, 'public', WORKER), { force: true });
+// Vite copies public/ to the dist root as well as emitting the public/ paths the manifest uses,
+// so the icons and the interceptor would ship twice. Keep only the copies the manifest references.
+const referenced = new Set([
+  WORKER,
+  ...Object.values(manifest.icons ?? {}),
+  ...Object.values(manifest.action?.default_icon ?? {}),
+  ...(manifest.web_accessible_resources ?? []).flatMap((r) => r.resources ?? []),
+  ...(manifest.content_scripts ?? []).flatMap((c) => c.js ?? []),
+]);
+for (const name of readdirSync(dist)) {
+  const full = join(dist, name);
+  if (statSync(full).isDirectory() || name === 'manifest.json') continue;
+  if (!referenced.has(name)) { rmSync(full, { force: true }); console.log(`postbuild: dropped duplicate ${name}`); }
+}
 manifest.background = { service_worker: WORKER }; // classic script: no module graph that can go stale
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 console.log(`postbuild: background.service_worker → ${WORKER} (${(Buffer.byteLength(code) / 1024).toFixed(0)} kB, self-contained)`);

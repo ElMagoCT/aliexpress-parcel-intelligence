@@ -1,10 +1,32 @@
 # Changelog
 
-All notable changes to **AliExpress Parcel Intelligence**.
+All notable changes to **Parcel Intelligence**.
 
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The version here is the one in
 `manifest.config.ts`, which is what the Chrome Web Store sees.
+
+---
+
+## [1.4.1] — 2026-09-22
+
+### Changed
+
+- **Renamed to “Parcel Intelligence”.** The Web Store rejects names likely to suggest affiliation
+  with another company, and the old name led with the AliExpress trademark. The brand stays in the
+  description, where it is both allowed and searchable.
+- The manifest description said "your own AliExpress orders" long after the extension started
+  handling any store.
+- The privacy policy now covers the toolbar popup: it reads the active tab, only on click, under
+  Chrome's `activeTab` permission, shows what it found before anything is saved, and sends nothing
+  anywhere.
+
+### Fixed
+
+- The build shipped the icons and the page interceptor twice — once at the root and once under
+  `public/` — because Vite copies the public directory in addition to emitting the paths the
+  manifest references. The build now keeps only the referenced copies and verifies every manifest
+  reference resolves.
 
 ---
 
@@ -243,6 +265,7 @@ Initial build: the whole extension in one pass, ten phases, shipped working befo
 - Not yet verified against a live account; endpoint names and DOM selectors were written from
   memory.
 
+[1.4.1]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.4.1
 [1.4.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.4.0
 [1.3.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.3.0
 [1.2.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.2.0

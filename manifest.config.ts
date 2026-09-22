@@ -3,10 +3,10 @@ import { defineManifest } from '@crxjs/vite-plugin';
 /** MV3 manifest. All AliExpress-specific match patterns are mirrored in src/adapters/aliexpress.ts. */
 export default defineManifest({
   manifest_version: 3,
-  name: 'AliExpress Parcel Intelligence',
+  name: 'Parcel Intelligence',
   description:
-    'Local-only map dashboard, delivery estimates and spend analytics for your own AliExpress orders. No backend, no telemetry.',
-  version: '1.4.0',
+    'Every parcel you order, from any store, on one map — with delivery estimates from your own history. All data stays local.',
+  version: '1.4.1',
   minimum_chrome_version: '116',
   icons: { 16: 'public/icon16.png', 32: 'public/icon32.png', 48: 'public/icon48.png', 128: 'public/icon128.png' },
   action: { default_title: 'Parcel Intelligence', default_popup: 'src/popup/index.html', default_icon: { 16: 'public/icon16.png', 32: 'public/icon32.png', 48: 'public/icon48.png' } },

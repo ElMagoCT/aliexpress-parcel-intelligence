@@ -1,8 +1,8 @@
-# Privacy Policy — AliExpress Parcel Intelligence
+# Privacy Policy — Parcel Intelligence
 
 _Last updated: 2026-09-20_
 
-AliExpress Parcel Intelligence is a browser extension that shows you your own AliExpress orders,
+Parcel Intelligence is a browser extension that shows you your own AliExpress orders,
 parcels and spending on a map and dashboard. It is built around one rule: **your data never
 leaves your browser.**
 

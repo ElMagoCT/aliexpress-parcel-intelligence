@@ -1,7 +1,7 @@
 {
-  "name": "aliexpress-parcel-intel",
+  "name": "parcel-intelligence",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -36,6 +36,6 @@
     "vitest": "^5.0.1",
     "world-atlas": "^2.0.2"
   },
-  "description": "Chrome extension: your own AliExpress parcels on a map, with delivery estimates learned from your own history. All data stays in your browser.",
+  "description": "Chrome extension: every parcel you order, from any store, on one map \u2014 with delivery estimates from your own history. All data stays local.",
   "license": "MIT"
 }
