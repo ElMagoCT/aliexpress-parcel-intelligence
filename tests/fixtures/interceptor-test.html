@@ -1,0 +1,20 @@
+<!doctype html><meta charset="utf-8"><title>interceptor smoke test</title>
+<body style="font:14px system-ui;padding:20px;background:#111;color:#eee">
+<h3>MAIN-world interceptor smoke test</h3>
+<pre id="log">loading…</pre>
+<script src="/public/interceptor.iife.js"></script>
+<script>
+  const log = (m) => (document.getElementById('log').textContent += '\n' + m);
+  document.getElementById('log').textContent = 'interceptor loaded: ' + (typeof window.fetch === 'function' && window.fetch.toString().includes('native') ? 'NO (fetch not patched)' : 'yes (fetch patched)');
+  let got = 0;
+  window.addEventListener('message', (ev) => { if (ev.data && ev.data.__aepi === 1) { got++; log(`captured via ${ev.data.via}: ${ev.data.url} (${ev.data.body.length} bytes)`); document.title = 'captured:' + got; } });
+  // 1. fetch to a URL whose PATH matches the mtop order pattern (served locally)
+  fetch('/tests/fixtures/mtop.aliexpress.buyer.order.list.json').then(r => r.json()).then(() => log('fetch done'));
+  // 2. XHR
+  const x = new XMLHttpRequest(); x.open('GET', '/tests/fixtures/mtop.aliexpress.logistics.trackingdetail.json'); x.onloadend = () => log('xhr done'); x.send();
+  // 3. JSONP-style script with callback param
+  window.mtopjsonp9 = function (d) { log('jsonp callback ran with ' + Object.keys(d).length + ' keys'); };
+  const s = document.createElement('script'); s.src = '/tests/fixtures/mtop.aliexpress.buyer.order.list.jsonp.js?callback=mtopjsonp9'; document.body.appendChild(s);
+  // 4. a non-matching fetch must NOT be captured
+  fetch('/tests/fixtures/ignore-me.json').then(() => log('non-matching fetch done (should not be captured)'));
+</script>

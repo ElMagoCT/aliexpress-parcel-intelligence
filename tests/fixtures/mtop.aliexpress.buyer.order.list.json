@@ -1,0 +1,1 @@
+{"api":"mtop.aliexpress.buyer.order.list","data":{"orderList":[{"tradeOrderId":"3040123456789012","orderStatus":"WAIT_BUYER_ACCEPT_GOODS","gmtCreate":"2026-08-30 14:22:10","orderAmount":{"currency":"USD","value":23.47},"subOrders":[{"productId":1005006123456,"title":"ESP32-S3 DevKit","quantity":1,"logisticsNo":"LP00123456789CN"}]}]}}
