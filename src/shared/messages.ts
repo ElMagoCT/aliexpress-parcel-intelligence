@@ -26,6 +26,7 @@ export type BgMessage =
   | { type: 'LIST_ABANDONED' }
   | { type: 'CLOSE_ABANDONED'; state?: ManualState }
   | { type: 'PARSE_PAGE'; harvest: PageHarvest }
+  | { type: 'FETCH_CARRIER_SCANS'; parcelId: string }
   | { type: 'GET_JOBS' }
   | { type: 'RELOAD_EXT' }
   | { type: 'SYNC_TRACKING' }

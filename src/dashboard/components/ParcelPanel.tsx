@@ -3,9 +3,9 @@ import type { Item, Order, Parcel, Prediction, TrackEvent } from '@/model/types'
 import { MILESTONE_LABEL } from '@/model/types';
 import { disputeWindow } from '@/engine/dispute';
 import { fmtDate, fmtDateTime, DAY } from '@/shared/util';
-import { CARRIERS, detectCarrier } from '@/engine/carriers';
+import { CARRIERS, carrierOrigin, detectCarrier } from '@/engine/carriers';
 import { PLATFORM_LABEL } from '@/model/types';
-import { bg } from '../lib/bg';
+import { bg, requestOrigin } from '../lib/bg';
 
 export function stateTag(p: Parcel) {
   if (p.manualState) {
@@ -43,12 +43,32 @@ export function EtaBand({ pred, order, now = Date.now() }: { pred: Prediction | 
 export function ParcelPanel({ parcel, items, orders, events, pred, groupSize, onClose }: { parcel: Parcel; items: Item[]; orders: Order[]; events: TrackEvent[]; pred: Prediction | undefined; groupSize: number; onClose: () => void }) {
   const [explain, setExplain] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [carrierMsg, setCarrierMsg] = useState<string | null>(null);
   const order = orders[0];
   const dw = disputeWindow(order, parcel);
   const doExplain = async () => { setBusy(true); const r = await bg({ type: 'EXPLAIN_PARCEL', parcelId: parcel.parcelId }); setExplain(r.ok ? String((r as { text?: string }).text ?? '') : `Error: ${(r as { error: string }).error}`); setBusy(false); };
   const poll = async () => { setBusy(true); await bg({ type: 'POLL_PARCEL', parcelId: parcel.parcelId }); setBusy(false); };
   const mark = async (state: 'delivered' | 'lost' | 'archived' | null) => { setBusy(true); await bg({ type: 'SET_PARCEL_STATE', parcelId: parcel.parcelId, state }); setBusy(false); };
   const carrier = CARRIERS[parcel.carrier ?? ''] ?? detectCarrier(parcel.trackingNo, parcel.logisticsService).carrier;
+  /**
+   * Carriers publish no free API, so read their own tracking page: ask for that one site, open it
+   * in a background tab, take what it renders, close it.
+   */
+  const fetchFromCarrier = () => {
+    const origin = carrierOrigin(carrier, parcel.trackingNo);
+    setBusy(true);
+    setCarrierMsg(`Asking for access to ${carrier.name}…`);
+    void (origin ? requestOrigin(origin) : Promise.resolve(true)).then(async (granted) => {
+      if (!granted) { setCarrierMsg(`Access to ${carrier.name} declined, so its scans can't be read.`); setBusy(false); return; }
+      setCarrierMsg(`Reading ${carrier.name}…`);
+      const res = await bg({ type: 'FETCH_CARRIER_SCANS', parcelId: parcel.parcelId });
+      const r = res.ok ? (res as unknown as { result: { ok: boolean; note: string; scans: number; delivered: boolean } }).result : null;
+      setCarrierMsg(!r ? `Failed: ${(res as { error: string }).error}`
+        : r.ok ? `${carrier.name}: ${r.scans} scan${r.scans === 1 ? '' : 's'}${r.delivered ? ', delivered' : ''}.`
+        : r.note);
+      setBusy(false);
+    });
+  };
   return (
     <div className="panel">
       <button className="close" onClick={onClose}>×</button>
@@ -94,7 +114,12 @@ export function ParcelPanel({ parcel, items, orders, events, pred, groupSize, on
         )}
       </div>
       {parcel.manualState && <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>You marked this {parcel.manualState} on {fmtDate(parcel.manualStateAt)}. It no longer polls, and a hand-set delivery date is kept out of the delivery estimates.</div>}
-      {!carrier.pollable && !parcel.orderIds.length && <div className="muted" style={{ fontSize: 11, marginTop: 6 }}>{carrier.name} scans can't be read automatically — use the link above.</div>}
+      {!carrier.pollable && (
+        <div className="row" style={{ marginTop: 8, gap: 8, alignItems: 'center' }}>
+          <button className="btn sm" onClick={fetchFromCarrier} disabled={busy}>Read scans from {carrier.name}</button>
+          {carrierMsg && <span className="muted" style={{ fontSize: 11 }}>{carrierMsg}</span>}
+        </div>
+      )}
       {explain && <div className="explain">{explain}</div>}
       <ul className="tl">
         {[...events].reverse().map((e) => (

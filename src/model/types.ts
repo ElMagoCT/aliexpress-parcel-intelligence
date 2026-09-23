@@ -164,7 +164,7 @@ export interface TrackEvent {
   lat: number | null;
   lng: number | null;
   geoConfidence: number | null; // 0..1
-  source: 'cainiao' | 'aliexpress' | 'manual';
+  source: 'cainiao' | 'aliexpress' | 'carrier' | 'manual';
   /** Carrier / platform action code when the payload had one (e.g. AE_LH_ARRIVE). */
   code?: string | null;
 }

@@ -8,6 +8,36 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ---
 
+## [1.5.0] — 2026-09-22
+
+Tracking history for carriers other than AliExpress, and a toolbar button that does the obvious
+thing when there is nothing to capture.
+
+### Added
+
+- **Read scans from the carrier's own page.** A parcel from UPS, USPS, FedEx, DHL and the rest can
+  now be brought up to date: the extension asks for access to that one carrier's site, opens its
+  public tracking page in a background tab, reads what it renders, and closes it. No API keys, no
+  contracts, and nothing sent anywhere — it is the same page the "track on the carrier's site" link
+  opens, read for you instead of by you. Site access is optional and requested per carrier.
+- The reader pulls the status, the delivery date and time, the destination, the service and the
+  ship date, plus every dated scan row it can find, and hands the wording to the same milestone
+  classifier the AliExpress scans use. A delivery time read from the carrier is real, so unlike a
+  hand-marked one it does train the delivery estimates.
+
+### Changed
+
+- **Clicking the toolbar button on a new tab now opens the dashboard.** The capture popup only
+  appears where there is actually a page to capture from; on a new tab, a settings page or the Web
+  Store it goes straight to the dashboard instead of showing an empty form.
+
+### Fixed
+
+- "Left at the Security Gate", and the other places carriers leave parcels — gates, porches,
+  garages, lobbies, side doors — were not recognised as a delivery.
+
+---
+
 ## [1.4.1] — 2026-09-22
 
 ### Changed
@@ -265,6 +295,7 @@ Initial build: the whole extension in one pass, ten phases, shipped working befo
 - Not yet verified against a live account; endpoint names and DOM selectors were written from
   memory.
 
+[1.5.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.5.0
 [1.4.1]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.4.1
 [1.4.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.4.0
 [1.3.0]: https://github.com/ElMagoCT/aliexpress-parcel-intelligence/releases/tag/v1.3.0

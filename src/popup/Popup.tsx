@@ -26,6 +26,9 @@ export function Popup() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) throw new Error('no active tab');
+      // A new tab, a settings page or the Web Store has nothing to capture — go straight to the
+      // dashboard rather than showing an empty form.
+      if (!/^https?:/i.test(tab.url ?? '')) { void bg({ type: 'OPEN_DASHBOARD' }); window.close(); return; }
       const [res] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: HARVESTER });
       const harvest = res?.result;
       if (!harvest) throw new Error('could not read this page');

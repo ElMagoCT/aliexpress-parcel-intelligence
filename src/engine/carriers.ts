@@ -40,6 +40,14 @@ export const CARRIERS: Record<string, Carrier> = {
 };
 
 /** ISO country of an S10 (UPU) number like `LX123456789CN`. */
+/** The origin a carrier's tracking page lives on, for an optional host-permission request. */
+export function carrierOrigin(c: Carrier, trackingNo = 'X'): string | null {
+  try { return new URL(c.url(trackingNo)).origin + '/*'; } catch { return null; }
+}
+
+/** Every origin the extension may ask for, to declare as optional host permissions. */
+export const CARRIER_ORIGINS = [...new Set(Object.values(CARRIERS).map((c) => carrierOrigin(c)).filter((o): o is string => !!o))].sort();
+
 export function s10Country(tn: string): string | null {
   const m = /^[A-Z]{2}\d{9}([A-Z]{2})$/.exec(tn);
   return m ? m[1] : null;

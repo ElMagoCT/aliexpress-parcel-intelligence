@@ -51,6 +51,8 @@ async function shimAsync(msg: BgMessage): Promise<BgResponse> {
         const { parseShoppingPage } = await import('@/adapters/pageCapture');
         return { ok: true, item: parseShoppingPage(msg.harvest) };
       }
+      case 'FETCH_CARRIER_SCANS':
+        return { ok: true, result: { ok: false, note: 'Reading a carrier page needs the installed extension.', scans: 0, delivered: false } };
       default: return shim(msg);
     }
   } catch (e) {

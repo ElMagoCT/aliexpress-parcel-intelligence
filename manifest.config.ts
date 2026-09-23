@@ -1,4 +1,5 @@
 import { defineManifest } from '@crxjs/vite-plugin';
+import { CARRIER_ORIGINS } from './src/engine/carriers';
 
 /** MV3 manifest. All AliExpress-specific match patterns are mirrored in src/adapters/aliexpress.ts. */
 export default defineManifest({
@@ -6,7 +7,7 @@ export default defineManifest({
   name: 'Parcel Intelligence',
   description:
     'Every parcel you order, from any store, on one map — with delivery estimates from your own history. All data stays local.',
-  version: '1.4.1',
+  version: '1.5.0',
   minimum_chrome_version: '116',
   icons: { 16: 'public/icon16.png', 32: 'public/icon32.png', 48: 'public/icon48.png', 128: 'public/icon128.png' },
   action: { default_title: 'Parcel Intelligence', default_popup: 'src/popup/index.html', default_icon: { 16: 'public/icon16.png', 32: 'public/icon32.png', 48: 'public/icon48.png' } },
@@ -20,10 +21,12 @@ export default defineManifest({
     '*://global.cainiao.com/*',
     '*://*.cainiao.com/*',
   ],
+  // Carrier sites are optional and requested one at a time, only when you ask to read scans from one.
   optional_host_permissions: [
     'https://nominatim.openstreetmap.org/*',
     'https://api.anthropic.com/*',
     'https://open.er-api.com/*',
+    ...CARRIER_ORIGINS,
   ],
   // The MAIN-world interceptor (public/interceptor.iife.js) is registered at runtime by the
   // service worker with chrome.scripting — see src/background/index.ts (registerInterceptor).

@@ -27,7 +27,14 @@ no telemetry and no remote code.
 - **Map tiles** from Esri's public tile services (server.arcgisonline.com) to draw the base map.
   Tile requests contain only the map area being viewed.
 
-Optional, **off by default and only if you enable them in Settings**:
+Optional, **off by default and only if you ask for them**:
+
+- **A carrier's own tracking site** (UPS, USPS, FedEx, DHL, Royal Mail, Canada Post, Australia
+  Post, and the others listed in the extension) — only when you click "Read scans from <carrier>"
+  on a parcel. The extension asks for access to that one site, opens its public tracking page for
+  your tracking number in a background tab, reads the page, and closes it. Nothing is sent
+  anywhere; the result is stored only in your browser.
+
 
 - **nominatim.openstreetmap.org** — geocoding of scan location names the bundled gazetteer
   does not know (place names only, one request per second).

@@ -4,7 +4,7 @@ Folder contents:
 
 | File | Use |
 |---|---|
-| `parcel-intelligence-1.4.1.zip` | Upload as the package (Store dashboard → Package → Upload new package). Built from `dist/`, manifest at the zip root. |
+| `parcel-intelligence-1.5.0.zip` | Upload as the package (Store dashboard → Package → Upload new package). Built from `dist/`, manifest at the zip root. |
 | `icon-128.png` | Store icon (128×128 PNG, required). `icon-512.png` is a hi-res source if you want to edit it. |
 | `screenshots/1-map.png … 5-orders.png` | Screenshots, 1280×800 PNG (Store accepts 1280×800 or 640×400; up to 5). Upload in this order. |
 | `promo-small-440x280.png` | Small promo tile (440×280). Optional but shown in search/category pages. |
@@ -89,6 +89,7 @@ Not affiliated with AliExpress, Alibaba or Cainiao.
 | `cookies` | Reads the `_m_h5_tk` token cookie on aliexpress.com, which is required to sign AliExpress API requests when refreshing orders in the background with the user's own session. |
 | Host `*://*.aliexpress.com/*`, `*://*.aliexpress.us/*` | Reading the user's own order and tracking data on AliExpress, injecting the delivery-estimate badge on product pages. |
 | Host `*://global.cainiao.com/*`, `*://*.cainiao.com/*` | Public parcel tracking lookups by tracking number. |
+| Optional hosts: carrier tracking sites (ups.com, tools.usps.com, fedex.com, dhl.com, …) | Requested one carrier at a time, only when the user clicks "Read scans from <carrier>" on a parcel. The extension opens that carrier's public tracking page for the user's own tracking number in a background tab, reads the rendered scan history, and closes it. No carrier API or key is involved and nothing is transmitted. |
 | Optional hosts (nominatim.openstreetmap.org, open.er-api.com, api.anthropic.com) | Requested at runtime only when the user enables geocoding, currency conversion or the LLM helper in Settings. |
 
 **Remote code:** No, I am not using remote code. (All code is in the package; map tiles are images.)
@@ -110,7 +111,7 @@ Not affiliated with AliExpress, Alibaba or Cainiao.
 
 - [ ] Load `dist/` unpacked in a fresh Chrome profile once and click through Map, Timeline, Finance, Settings; open aliexpress.com and confirm orders arrive.
 - [x] Privacy policy URL is live: https://elmagoct.github.io/parcel-intelligence/privacy.html
-- [ ] `manifest.json` version is `1.4.1` (bump for every future upload; see CHANGELOG.md).
+- [ ] `manifest.json` version is `1.5.0` (bump for every future upload; see CHANGELOG.md).
 - [ ] Review takes ~1–3 business days for a first submission; `cookies` + broad host permissions usually trigger a manual review — the justifications above address it.
 
 ## Source
